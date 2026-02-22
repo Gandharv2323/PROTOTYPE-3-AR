@@ -1,88 +1,125 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AR Mirror — Virtual Try-On</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="description" content="AR Mirror - Real-time virtual garment try-on in your browser" />
+  <title>AR Mirror - Virtual Try-On</title>
   <style>
+    /* Reset & Custom Properties */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0a0a0a;
-      --surface:  #141414;
-      --border:   #2a2a2a;
-      --accent:   #e8e8e8;
-      --muted:    #666;
-      --green:    #4ade80;
-      --radius:   12px;
-      --mirror-w: 640px;
-      --mirror-h: 480px;
+      --bg:        #0a0a0a;
+      --surface:   #131316;
+      --surface-2: #1a1a1f;
+      --border:    #25252b;
+      --border-hi: #3a3a44;
+      --accent:    #e8e8e8;
+      --muted:     #6b6b78;
+      --green:     #4ade80;
+      --blue:      #60a5fa;
+      --amber:     #fbbf24;
+      --red:       #f87171;
+      --radius:    14px;
+      --radius-sm: 8px;
+      --mirror-w:  640px;
+      --mirror-h:  480px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+      --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     }
+
+    html { scroll-behavior: smooth; }
 
     body {
       background: var(--bg);
       color: var(--accent);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
-      gap: 20px;
+      padding: 20px 16px;
+      gap: 18px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
+    /* Header */
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
       width: 100%;
-      max-width: 900px;
+      max-width: 940px;
+      animation: fadeInDown 0.5s var(--ease-out) both;
     }
+
+    .header-icon {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2a2a34, #1a1a22);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .header-text { display: flex; flex-direction: column; gap: 1px; }
 
     header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
     }
-
     header .brand {
-      font-size: 12px;
+      font-size: 10px;
       color: var(--muted);
-      letter-spacing: 0.1em;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
+      font-weight: 500;
     }
 
     #fps-display {
       margin-left: auto;
       font-size: 11px;
-      font-family: monospace;
+      font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
       color: var(--green);
-      background: rgba(74,222,128,0.08);
-      padding: 4px 10px;
+      background: rgba(74,222,128,0.07);
+      padding: 5px 12px;
       border-radius: 20px;
-      min-width: 80px;
+      border: 1px solid rgba(74,222,128,0.12);
+      min-width: 85px;
       text-align: center;
+      transition: color 0.3s, border-color 0.3s, background 0.3s;
     }
 
-    /* Main layout */
+    /* Main Layout */
     .main-layout {
       display: flex;
-      gap: 20px;
+      gap: 18px;
       width: 100%;
-      max-width: 900px;
+      max-width: 940px;
       align-items: flex-start;
+      animation: fadeInUp 0.5s var(--ease-out) 0.1s both;
     }
 
-    /* AR Mirror canvas area */
+    /* AR Mirror Canvas */
     .mirror-wrap {
       position: relative;
       width: var(--mirror-w);
       height: var(--mirror-h);
       border-radius: var(--radius);
       overflow: hidden;
-      background: #111;
+      background: #0f0f12;
       flex-shrink: 0;
       border: 1px solid var(--border);
+      box-shadow: var(--shadow-lg), inset 0 0 0 1px rgba(255,255,255,0.03);
+      transition: box-shadow 0.4s;
     }
 
     #output-canvas {
@@ -91,16 +128,13 @@
       height: 100%;
       object-fit: cover;
     }
-
-    /* Hidden canvases / video */
-    #cloth-canvas,
-    #video-el {
+    #cloth-canvas, #video-el {
       display: none;
       position: absolute;
       pointer-events: none;
     }
 
-    /* Status overlay */
+    /* Status Overlay */
     #status-overlay {
       position: absolute;
       inset: 0;
@@ -108,21 +142,21 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(4px);
-      transition: opacity 0.4s;
+      gap: 14px;
+      background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: opacity 0.5s var(--ease-out);
+      z-index: 5;
     }
-
     #status-overlay.hidden { opacity: 0; pointer-events: none; }
 
     .spinner {
-      width: 36px;
-      height: 36px;
-      border: 3px solid var(--border);
+      width: 38px; height: 38px;
+      border: 2.5px solid rgba(255,255,255,0.08);
       border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -130,54 +164,121 @@
       font-size: 13px;
       color: var(--muted);
       text-align: center;
-      max-width: 220px;
+      max-width: 240px;
+      line-height: 1.5;
     }
 
-    /* Pose guide overlay */
+    /* Pose Guide */
     #pose-guide {
       position: absolute;
-      bottom: 12px;
+      bottom: 14px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 11px;
-      color: rgba(255,255,255,0.5);
-      background: rgba(0,0,0,0.4);
-      padding: 4px 12px;
+      color: rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 6px 16px;
       border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.06);
       pointer-events: none;
-      transition: opacity 0.3s;
+      transition: opacity 0.5s, transform 0.5s var(--ease-out);
+      white-space: nowrap;
+      z-index: 4;
     }
+    #pose-guide.hidden { opacity: 0; transform: translateX(-50%) translateY(8px); }
 
-    #pose-guide.hidden { opacity: 0; }
-
-    /* Tracking indicator */
+    /* Tracking Dot */
     #tracking-dot {
       position: absolute;
-      top: 12px;
-      left: 12px;
-      width: 8px;
-      height: 8px;
+      top: 14px; left: 14px;
+      width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--muted);
-      transition: background 0.3s;
+      transition: background 0.3s, box-shadow 0.3s;
+      z-index: 4;
     }
-    #tracking-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    #tracking-dot.active {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green), 0 0 16px rgba(74,222,128,0.25);
+      animation: pulseDot 2s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { box-shadow: 0 0 6px var(--green), 0 0 12px rgba(74,222,128,0.2); }
+      50%      { box-shadow: 0 0 10px var(--green), 0 0 20px rgba(74,222,128,0.35); }
+    }
 
-    /* ── Right panel ── */
+    /* Active Garment Pill */
+    #active-garment-pill {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-40px);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none;
+      transition: transform 0.4s var(--ease-spring), opacity 0.3s;
+      opacity: 0;
+      z-index: 4;
+      white-space: nowrap;
+    }
+    #active-garment-pill.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Debug Badge */
+    #debug-badge {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: rgba(74,222,128,0.15);
+      border: 1px solid rgba(74,222,128,0.4);
+      color: #4ade80;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      display: none;
+      z-index: 10;
+    }
+    #debug-badge.visible { display: block; }
+
+    /* Side Panel */
     .side-panel {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       min-width: 0;
+      max-height: calc(var(--mirror-h) + 40px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
+    .side-panel::-webkit-scrollbar { width: 5px; }
+    .side-panel::-webkit-scrollbar-track { background: transparent; }
+    .side-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .side-panel::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
 
     .panel-section {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 16px;
+      transition: border-color 0.3s;
     }
+    .panel-section:hover { border-color: var(--border-hi); }
 
     .section-label {
       font-size: 10px;
@@ -185,32 +286,50 @@
       text-transform: uppercase;
       color: var(--muted);
       margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::before {
+      content: '';
+      width: 3px; height: 12px;
+      border-radius: 2px;
+      background: var(--border-hi);
+      flex-shrink: 0;
     }
 
-    /* Garment grid */
+    /* Garment Grid */
     .garment-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
+      max-height: 380px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
+    .garment-grid::-webkit-scrollbar { width: 4px; }
+    .garment-grid::-webkit-scrollbar-track { background: transparent; }
+    .garment-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* ── Skeleton shimmer ── */
+    /* Skeleton shimmer */
     @keyframes shimmer {
       0%   { background-position: -400px 0; }
       100% { background-position:  400px 0; }
     }
     .skeleton-card {
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
-      background: #1a1a1a;
+      background: var(--surface-2);
       pointer-events: none;
     }
     .skeleton-img {
       width: 100%;
       aspect-ratio: 3/4;
-      background: linear-gradient(90deg,
-        #222 25%, #2e2e2e 50%, #222 75%);
+      background: linear-gradient(90deg, #1a1a1f 25%, #222228 50%, #1a1a1f 75%);
       background-size: 800px 100%;
       animation: shimmer 1.4s infinite linear;
     }
@@ -223,55 +342,90 @@
     .skeleton-line {
       height: 10px;
       border-radius: 4px;
-      background: linear-gradient(90deg,
-        #222 25%, #2e2e2e 50%, #222 75%);
+      background: linear-gradient(90deg, #1a1a1f 25%, #222228 50%, #1a1a1f 75%);
       background-size: 800px 100%;
       animation: shimmer 1.4s infinite linear;
     }
     .skeleton-line.short { width: 50%; }
+
     @keyframes cardIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .garment-card {
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
       cursor: pointer;
-      transition: border-color 0.2s, transform 0.15s;
-      background: #1a1a1a;
-      touch-action: manipulation;          /* no 300ms tap delay */
+      transition: border-color 0.25s, transform 0.2s var(--ease-out),
+                  box-shadow 0.25s, background 0.2s;
+      background: var(--surface-2);
+      touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
+      position: relative;
     }
-    .garment-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .garment-card.selected { border-color: var(--accent); border-width: 2px; }
+    .garment-card:hover {
+      border-color: var(--border-hi);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    }
+    .garment-card:active {
+      transform: translateY(-1px) scale(0.98);
+      transition-duration: 0.08s;
+    }
+    .garment-card.selected {
+      border-color: var(--accent);
+      border-width: 2px;
+      box-shadow: 0 0 0 3px rgba(232,232,232,0.08), 0 6px 20px rgba(0,0,0,0.3);
+    }
+    .garment-card.selected::after {
+      content: '\2713';
+      position: absolute;
+      top: 6px; right: 6px;
+      width: 20px; height: 20px;
+      background: var(--accent);
+      color: var(--bg);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      animation: checkPop 0.3s var(--ease-spring);
+      z-index: 2;
+    }
+    @keyframes checkPop {
+      from { transform: scale(0); }
+      to   { transform: scale(1); }
+    }
 
     .garment-card img {
       width: 100%;
       aspect-ratio: 3/4;
       object-fit: cover;
       display: block;
-      background: #222;
+      background: #18181c;
+      transition: transform 0.3s var(--ease-out);
     }
+    .garment-card:hover img { transform: scale(1.04); }
 
-    .garment-info {
-      padding: 8px;
-    }
+    .garment-info { padding: 8px 10px; }
     .garment-name {
-      font-size: 12px;
-      font-weight: 500;
+      font-size: 11.5px;
+      font-weight: 550;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.3;
     }
     .garment-price {
       font-size: 11px;
       color: var(--muted);
       margin-top: 2px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* Size chips */
+    /* Size Chips */
     .size-chips {
       display: flex;
       gap: 6px;
@@ -279,30 +433,38 @@
     }
     .size-chip {
       flex: 1;
-      min-width: 36px;
-      padding: 6px 4px;
+      min-width: 38px;
+      padding: 7px 4px;
       background: transparent;
-      color: var(--fg);
+      color: var(--accent);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 7px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 650;
       letter-spacing: 0.06em;
       cursor: pointer;
-      transition: border-color 0.18s, background 0.18s, color 0.18s;
+      transition: border-color 0.2s, background 0.2s, color 0.2s,
+                  transform 0.15s var(--ease-spring), box-shadow 0.2s;
       text-align: center;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-    .size-chip:hover   { border-color: var(--accent); }
-    .size-chip.active  { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .size-chip:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.03); }
+    .size-chip:active { transform: scale(0.94); }
+    .size-chip.active {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+      box-shadow: 0 2px 8px rgba(232,232,232,0.15);
+    }
     .size-note {
       font-size: 10px;
       color: var(--muted);
       margin-top: 8px;
+      transition: color 0.3s;
     }
 
-    /* Height calibration */
+    /* Height Calibration */
     .height-row {
       display: flex;
       gap: 8px;
@@ -310,188 +472,315 @@
     }
     .height-row input[type=number] {
       flex: 1;
-      background: #111;
+      background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--fg);
-      padding: 6px 10px;
+      border-radius: 7px;
+      color: var(--accent);
+      padding: 7px 12px;
       font-size: 13px;
+      font-weight: 500;
       outline: none;
       -moz-appearance: textfield;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .height-row input[type=number]:focus { border-color: var(--accent); }
+    .height-row input[type=number]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(232,232,232,0.06);
+    }
     .height-row input::-webkit-outer-spin-button,
     .height-row input::-webkit-inner-spin-button { -webkit-appearance: none; }
     .height-set-btn {
-      padding: 6px 14px;
+      padding: 7px 16px;
       background: var(--accent);
       color: var(--bg);
       border: none;
-      border-radius: 6px;
+      border-radius: 7px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 650;
       cursor: pointer;
       white-space: nowrap;
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, transform 0.15s var(--ease-spring);
     }
-    .height-set-btn:hover { opacity: 0.85; }
+    .height-set-btn:hover { opacity: 0.88; }
+    .height-set-btn:active { transform: scale(0.95); }
 
-    /* Debug badge */
-    #debug-badge {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(74,222,128,0.20);
-      border: 1px solid #4ade80;
-      color: #4ade80;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      padding: 3px 8px;
-      border-radius: 4px;
-      pointer-events: none;
-      display: none;
-      z-index: 10;
-    }
-    #debug-badge.visible { display: block; }
+    /* CTA Buttons */
+    .button-stack { display: flex; flex-direction: column; gap: 8px; }
 
-    /* CTA button */
     #add-to-cart {
       width: 100%;
-      padding: 12px;
+      padding: 13px 16px;
       background: var(--accent);
       color: var(--bg);
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 650;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s;
-      letter-spacing: 0.02em;
+      transition: opacity 0.2s, transform 0.15s var(--ease-spring),
+                  background 0.3s, color 0.3s;
+      letter-spacing: 0.01em;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
     }
-    #add-to-cart:hover { opacity: 0.9; transform: translateY(-1px); }
-    #add-to-cart:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+    #add-to-cart:hover { opacity: 0.92; transform: translateY(-1px); }
+    #add-to-cart:active { transform: translateY(0) scale(0.98); }
+    #add-to-cart:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
     #add-to-cart.added {
       background: var(--green);
       color: #000;
+      animation: btnSuccess 0.4s var(--ease-spring);
+    }
+    @keyframes btnSuccess {
+      0%  { transform: scale(1); }
+      30% { transform: scale(1.03); }
+      100% { transform: scale(1); }
     }
 
-    /* Share / snapshot button */
     #share-btn {
       width: 100%;
-      padding: 10px;
+      padding: 11px 16px;
       background: transparent;
       color: var(--accent);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 13px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
       font-weight: 500;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      letter-spacing: 0.02em;
+      transition: border-color 0.2s, background 0.2s, transform 0.15s var(--ease-spring);
+      letter-spacing: 0.01em;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 7px;
     }
-    #share-btn:hover { border-color: var(--accent); background: rgba(255,255,255,0.05); }
+    #share-btn:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.03); }
+    #share-btn:active { transform: scale(0.97); }
     #share-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-    #share-btn.flash { background: var(--accent); color: var(--bg); }
+    #share-btn.flash { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
-    /* Analytics mini-panel */
+    /* Analytics Panel */
     #analytics-panel {
       font-size: 11px;
       color: var(--muted);
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
-    .kv { display: flex; justify-content: space-between; }
-    .kv span:last-child { color: var(--accent); font-family: monospace; }
+    .kv {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 0;
+    }
+    .kv span:last-child {
+      color: var(--accent);
+      font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 11px;
+    }
 
-    /* Responsive */
+    /* Onboarding Toast */
+    #onboarding-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border-hi);
+      border-radius: 14px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      opacity: 0;
+      transition: transform 0.5s var(--ease-spring), opacity 0.4s;
+      max-width: 400px;
+      width: calc(100% - 32px);
+    }
+    #onboarding-toast.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .toast-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(74,222,128,0.12), rgba(96,165,250,0.12));
+      border: 1px solid rgba(74,222,128,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .toast-body { flex: 1; min-width: 0; }
+    .toast-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+    .toast-desc {
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .toast-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.2s;
+      flex-shrink: 0;
+    }
+    .toast-close:hover { color: var(--accent); }
+
+    /* Count Badge */
+    .count-badge {
+      font-size: 10px;
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Keyframe Animations */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Section stagger */
+    .side-panel .panel-section:nth-child(1) { animation: fadeInUp 0.4s var(--ease-out) 0.15s both; }
+    .side-panel .panel-section:nth-child(2) { animation: fadeInUp 0.4s var(--ease-out) 0.22s both; }
+    .side-panel .panel-section:nth-child(3) { animation: fadeInUp 0.4s var(--ease-out) 0.29s both; }
+    .side-panel .panel-section:nth-child(4) { animation: fadeInUp 0.4s var(--ease-out) 0.36s both; }
+    .side-panel .panel-section:nth-child(5) { animation: fadeInUp 0.4s var(--ease-out) 0.43s both; }
+
+    /* Responsive: Tablet */
+    @media (max-width: 960px) and (min-width: 721px) {
+      :root { --mirror-w: 50vw; --mirror-h: calc(50vw * 0.75); }
+      .main-layout { gap: 14px; }
+      .garment-grid { max-height: 300px; }
+    }
+
+    /* Responsive: Mobile */
     @media (max-width: 720px) {
       :root { --mirror-w: 100vw; --mirror-h: calc(100vw * 0.75); }
-      .main-layout { flex-direction: column; }
-      .mirror-wrap { width: 100%; height: calc(100vw * 0.75); }
-      .garment-grid { grid-template-columns: repeat(3, 1fr); }
-      body { padding: 12px 10px; gap: 14px; }
+      body { padding: 12px 10px; gap: 12px; }
+      .main-layout { flex-direction: column; gap: 12px; }
+      .mirror-wrap {
+        width: calc(100% + 20px);
+        margin-left: -10px;
+        border-radius: 0;
+        height: calc(100vw * 0.75);
+        border-left: none; border-right: none;
+      }
+      .side-panel { max-height: none; overflow-y: visible; }
+      .garment-grid {
+        grid-template-columns: repeat(3, 1fr);
+        max-height: 340px;
+        gap: 8px;
+      }
+      header { padding: 0 4px; }
+      #onboarding-toast { bottom: 12px; }
     }
 
-    /* Small phones (portrait) */
+    /* Responsive: Small phones */
     @media (max-width: 400px) {
       :root { --mirror-h: calc(100vw * 0.85); }
       .garment-grid {
-        /* Horizontal scroll strip on very small screens */
         display: flex;
         overflow-x: auto;
         gap: 10px;
-        padding-bottom: 4px;
+        padding-bottom: 6px;
         scroll-snap-type: x mandatory;
         -webkit-overflow-scrolling: touch;
+        max-height: none;
       }
       .garment-card {
         flex-shrink: 0;
-        width: 100px;
+        width: 110px;
         scroll-snap-align: start;
       }
       header h1 { font-size: 15px; }
-      #add-to-cart { font-size: 13px; padding: 10px; }
+      #add-to-cart { font-size: 13px; padding: 11px; }
+      .panel-section { padding: 12px; }
     }
 
-    /* Landscape phone */
+    /* Responsive: Landscape phone */
     @media (max-height: 500px) and (orientation: landscape) {
       .main-layout { flex-direction: row; align-items: flex-start; }
-      :root { --mirror-w: 60vw; --mirror-h: 80vh; }
-      .mirror-wrap { width: var(--mirror-w); height: var(--mirror-h); }
+      :root { --mirror-w: 58vw; --mirror-h: 82vh; }
+      .mirror-wrap {
+        width: var(--mirror-w);
+        height: var(--mirror-h);
+        border-radius: var(--radius);
+        margin: 0; border: 1px solid var(--border);
+      }
       body { padding: 8px; gap: 8px; }
+      .garment-grid { max-height: 200px; }
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <div>
+    <div class="header-icon">&#x1F455;</div>
+    <div class="header-text">
       <div class="brand">AR Mirror</div>
       <h1>Virtual Try-On</h1>
     </div>
-    <div id="fps-display">— FPS</div>
+    <div id="fps-display">&mdash; FPS</div>
   </header>
 
   <div class="main-layout">
 
-    <!-- AR Mirror viewport -->
     <div class="mirror-wrap">
       <canvas id="output-canvas" width="640" height="480"></canvas>
       <canvas id="cloth-canvas" width="640" height="480"></canvas>
       <video  id="video-el" playsinline muted></video>
 
-      <!-- Loading overlay -->
       <div id="status-overlay">
         <div class="spinner"></div>
-        <div id="status-text">Loading AI models…<br>First load ~10 seconds</div>
+        <div id="status-text">Loading AI models&hellip;<br>First load ~10 seconds</div>
       </div>
 
-      <!-- Pose guide hint -->
       <div id="pose-guide">Stand back so your full torso is visible</div>
-
-      <!-- Tracking LED -->
       <div id="tracking-dot" title="Pose tracking status"></div>
-      <!-- Debug badge (shown when D key is active) -->
+      <div id="active-garment-pill"></div>
       <div id="debug-badge">DEBUG</div>
     </div>
 
-    <!-- Side panel -->
     <div class="side-panel">
 
-      <div class="panel-section">
-        <div class="section-label">Select Garment</div>
+      <div class="panel-section" id="garment-section">
+        <div class="section-label">
+          <span>Select Garment</span>
+          <span class="count-badge" id="garment-count">0</span>
+        </div>
         <div class="garment-grid" id="garment-grid">
-          <!-- Skeleton cards shown until API responds -->
           <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
           <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
           <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
@@ -508,7 +797,7 @@
           <button class="size-chip" data-size="L"  data-mult="1.10">L</button>
           <button class="size-chip" data-size="XL" data-mult="1.22">XL</button>
         </div>
-        <div class="size-note" id="size-note">M selected — garment scales with your body</div>
+        <div class="size-note" id="size-note">M selected &mdash; garment scales with your body</div>
       </div>
 
       <div class="panel-section">
@@ -517,54 +806,65 @@
           <input type="number" id="height-input" min="140" max="220" value="170" placeholder="cm">
           <button class="height-set-btn" id="height-set-btn">Set</button>
         </div>
-        <div class="size-note" id="height-note">170 cm — garment fit calibrated</div>
+        <div class="size-note" id="height-note">170 cm &mdash; garment fit calibrated</div>
       </div>
 
       <div class="panel-section">
-        <button id="add-to-cart" disabled>Select a garment to try on</button>
-        <div style="height:8px"></div>
-        <button id="share-btn" disabled>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          Share Try-On Photo
-        </button>
+        <div class="button-stack">
+          <button id="add-to-cart" disabled>Select a garment to try on</button>
+          <button id="share-btn" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share Try-On Photo
+          </button>
+        </div>
       </div>
 
       <div class="panel-section" id="analytics-panel">
         <div class="section-label">Session</div>
-        <div class="kv"><span>Try-on engagement</span><span id="stat-engagement">—</span></div>
-        <div class="kv"><span>Active garment</span><span id="stat-garment">—</span></div>
+        <div class="kv"><span>Try-on engagement</span><span id="stat-engagement">&mdash;</span></div>
+        <div class="kv"><span>Active garment</span><span id="stat-garment">&mdash;</span></div>
         <div class="kv"><span>Duration</span><span id="stat-duration">0s</span></div>
       </div>
 
     </div>
   </div>
 
-  <!-- MediaPipe: try primary CDN, fall back to secondary if it fails -->
+  <!-- Onboarding toast -->
+  <div id="onboarding-toast">
+    <div class="toast-icon">&#x2728;</div>
+    <div class="toast-body">
+      <div class="toast-title">Welcome to AR Mirror</div>
+      <div class="toast-desc">Select a garment from the catalog, then stand in frame to see it on you in real-time.</div>
+    </div>
+    <button class="toast-close" id="toast-close" aria-label="Close">&times;</button>
+  </div>
+
+  <!-- MediaPipe CDN loader -->
   <script>
     (function() {
-      const PRIMARY  = 'https://cdn.jsdelivr.net/npm';
-      const FALLBACK = 'https://unpkg.com';
-      const PKGS = [
+      var PRIMARY  = 'https://cdn.jsdelivr.net/npm';
+      var FALLBACK = 'https://unpkg.com';
+      var PKGS = [
         '@mediapipe/pose@0.5.1675469404/pose.js',
         '@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js',
       ];
-      let loaded = 0;
+      var loaded = 0;
       function loadScript(src, fallbackSrc) {
-        const s = document.createElement('script');
+        var s = document.createElement('script');
         s.src = src;
         s.crossOrigin = 'anonymous';
-        s.onload  = () => { loaded++; };
-        s.onerror = () => {
+        s.onload  = function() { loaded++; };
+        s.onerror = function() {
           console.warn('[CDN] Primary failed, trying fallback:', src);
-          const f   = document.createElement('script');
+          var f   = document.createElement('script');
           f.src     = fallbackSrc;
           f.crossOrigin = 'anonymous';
-          f.onerror = () => console.error('[CDN] Both CDNs failed for:', src);
+          f.onerror = function() { console.error('[CDN] Both CDNs failed for:', src); };
           document.head.appendChild(f);
         };
         document.head.appendChild(s);
       }
-      PKGS.forEach(pkg => loadScript(PRIMARY + '/' + pkg, FALLBACK + '/' + pkg));
+      PKGS.forEach(function(pkg) { loadScript(PRIMARY + '/' + pkg, FALLBACK + '/' + pkg); });
     })();
   </script>
 
@@ -573,141 +873,145 @@
     import { PoseTracker }        from './src/pose_tracker.js';
     import { initErrorTelemetry } from './src/analytics.js';
 
-    // ── Service Worker registration (model caching) ────────────────────────
+    // Service Worker registration
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(reg => {
+      navigator.serviceWorker.register('/sw.js').then(function(reg) {
         console.log('[SW] Registered, scope:', reg.scope);
-      }).catch(err => console.warn('[SW] Registration failed:', err));
+      }).catch(function(err) { console.warn('[SW] Registration failed:', err); });
     }
 
-    // ── Garment catalog — loaded from API (edit garments.json to change) ────
-    let GARMENTS = [];
+    // Garment catalog from API
+    var GARMENTS = [];
     try {
-      const res = await fetch('/api/garments');
+      var res = await fetch('/api/garments');
       GARMENTS  = await res.json();
     } catch (e) {
       console.warn('[Catalog] API unavailable:', e);
     }
 
-    // ── DOM refs ──────────────────────────────────────────────────────────────
-    const outputCanvas   = document.getElementById('output-canvas');
-    const clothCanvas    = document.getElementById('cloth-canvas');
-    const videoEl        = document.getElementById('video-el');
-    const fpsDisplay     = document.getElementById('fps-display');
-    const statusOverlay  = document.getElementById('status-overlay');
-    const statusText     = document.getElementById('status-text');
-    const poseGuide      = document.getElementById('pose-guide');
-    const trackingDot    = document.getElementById('tracking-dot');
-    const garmentGrid    = document.getElementById('garment-grid');
-    const addToCartBtn   = document.getElementById('add-to-cart');
-    const shareBtnEl     = document.getElementById('share-btn');
-    const statEngagement = document.getElementById('stat-engagement');
-    const statGarment    = document.getElementById('stat-garment');
-    const statDuration   = document.getElementById('stat-duration');
-    const sizeChipsEl    = document.getElementById('size-chips');
-    const sizeNoteEl     = document.getElementById('size-note');
-    const heightInputEl  = document.getElementById('height-input');
-    const heightSetBtn   = document.getElementById('height-set-btn');
-    const heightNoteEl   = document.getElementById('height-note');
-    const debugBadgeEl   = document.getElementById('debug-badge');
+    // DOM refs
+    var outputCanvas   = document.getElementById('output-canvas');
+    var clothCanvas    = document.getElementById('cloth-canvas');
+    var videoEl        = document.getElementById('video-el');
+    var fpsDisplay     = document.getElementById('fps-display');
+    var statusOverlay  = document.getElementById('status-overlay');
+    var statusText     = document.getElementById('status-text');
+    var poseGuide      = document.getElementById('pose-guide');
+    var trackingDot    = document.getElementById('tracking-dot');
+    var garmentGrid    = document.getElementById('garment-grid');
+    var garmentCount   = document.getElementById('garment-count');
+    var addToCartBtn   = document.getElementById('add-to-cart');
+    var shareBtnEl     = document.getElementById('share-btn');
+    var statEngagement = document.getElementById('stat-engagement');
+    var statGarment    = document.getElementById('stat-garment');
+    var statDuration   = document.getElementById('stat-duration');
+    var sizeChipsEl    = document.getElementById('size-chips');
+    var sizeNoteEl     = document.getElementById('size-note');
+    var heightInputEl  = document.getElementById('height-input');
+    var heightSetBtn   = document.getElementById('height-set-btn');
+    var heightNoteEl   = document.getElementById('height-note');
+    var debugBadgeEl   = document.getElementById('debug-badge');
+    var activePill     = document.getElementById('active-garment-pill');
+    var onboardingToast = document.getElementById('onboarding-toast');
+    var toastCloseBtn  = document.getElementById('toast-close');
 
-    // ── Build garment cards ───────────────────────────────────────────────────
-    let selectedGarment = null;
-
-    // Replace skeleton placeholders with real cards
+    // Build garment cards
+    var selectedGarment = null;
     garmentGrid.innerHTML = '';
+    garmentCount.textContent = GARMENTS.length;
 
-    GARMENTS.forEach((g, i) => {
-      const card = document.createElement('div');
+    GARMENTS.forEach(function(g, i) {
+      var card = document.createElement('div');
       card.className = 'garment-card';
-      card.style.animationDelay = `${i * 60}ms`;
-      card.style.animation = `cardIn 0.25s ease ${i * 60}ms both`;
-      card.innerHTML = `
-        <img src="${g.imageUrl}" alt="${g.name}"
-          onerror="this.style.background='#2a2a2a';this.style.height='120px'">
-        <div class="garment-info">
-          <div class="garment-name">${g.name}</div>
-          <div class="garment-price">$${g.price}</div>
-        </div>`;
-      card.addEventListener('click', () => selectGarment(g, card));
+      card.style.animation = 'cardIn 0.35s var(--ease-out) ' + (i * 40) + 'ms both';
+      card.innerHTML =
+        '<img src="' + g.imageUrl + '" alt="' + g.name + '" loading="lazy"' +
+        ' onerror="this.style.background=\'#2a2a2a\';this.style.height=\'120px\'">' +
+        '<div class="garment-info">' +
+        '<div class="garment-name" title="' + g.name + '">' + g.name + '</div>' +
+        '<div class="garment-price">$' + g.price + '</div>' +
+        '</div>';
+      card.addEventListener('click', function() { selectGarment(g, card); });
       garmentGrid.appendChild(card);
     });
 
     async function selectGarment(garment, card) {
-      // Update UI
-      document.querySelectorAll('.garment-card').forEach(c => c.classList.remove('selected'));
+      dismissToast();
+      document.querySelectorAll('.garment-card').forEach(function(c) { c.classList.remove('selected'); });
       card.classList.add('selected');
       selectedGarment = garment;
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 
       addToCartBtn.disabled = false;
       addToCartBtn.classList.remove('added');
-      addToCartBtn.textContent = `Add "${garment.name}" to Cart — $${garment.price}`;
+      addToCartBtn.textContent = 'Add "' + garment.name + '" to Cart \u2014 $' + garment.price;
+
+      activePill.textContent = garment.name;
+      activePill.classList.add('visible');
 
       statGarment.textContent = garment.name;
-
       await app.selectGarment(garment);
     }
 
-    // ── Size chips ──────────────────────────────────────────────────────
-    sizeChipsEl.addEventListener('click', (e) => {
-      const chip = e.target.closest('.size-chip');
+    // Size chips
+    sizeChipsEl.addEventListener('click', function(e) {
+      var chip = e.target.closest('.size-chip');
       if (!chip) return;
-      // Toggle active
-      sizeChipsEl.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
+      sizeChipsEl.querySelectorAll('.size-chip').forEach(function(c) { c.classList.remove('active'); });
       chip.classList.add('active');
-      const mult = parseFloat(chip.dataset.mult);
-      const size = chip.dataset.size;
+      var mult = parseFloat(chip.dataset.mult);
+      var size = chip.dataset.size;
       app.setSize(mult);
-      sizeNoteEl.textContent = `${size} selected — garment scales with your body`;
+      sizeNoteEl.textContent = size + ' selected \u2014 garment scales with your body';
     });
 
-    // ── Height calibration ──────────────────────────────────────────────
+    // Height calibration
     function applyHeight() {
-      const cm = parseInt(heightInputEl.value, 10);
+      var cm = parseInt(heightInputEl.value, 10);
       if (!cm || cm < 140 || cm > 220) return;
       app.setHeight(cm);
-      heightNoteEl.textContent = `${cm} cm — garment fit calibrated`;
+      heightNoteEl.textContent = cm + ' cm \u2014 garment fit calibrated';
     }
     heightSetBtn.addEventListener('click', applyHeight);
-    heightInputEl.addEventListener('keydown', e => { if (e.key === 'Enter') applyHeight(); });
+    heightInputEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') applyHeight(); });
 
-    // ── D key — debug skeleton overlay ─────────────────────────────────
-    document.addEventListener('keydown', e => {
+    // D key debug overlay
+    document.addEventListener('keydown', function(e) {
       if ((e.key === 'd' || e.key === 'D') && !e.target.matches('input,textarea')) {
-        const on = app.toggleDebug();
+        var on = app.toggleDebug();
         debugBadgeEl.classList.toggle('visible', on);
       }
     });
 
-    // ── Add to cart ─────────────────────────────────────────────────────
-    addToCartBtn.addEventListener('click', () => {
+    // Add to cart
+    addToCartBtn.addEventListener('click', function() {
       if (!selectedGarment) return;
       app.trackAddToCart(selectedGarment);
-      addToCartBtn.textContent = '✓ Added to Cart';
+      addToCartBtn.textContent = '\u2713 Added to Cart';
       addToCartBtn.classList.add('added');
-      setTimeout(() => {
-        addToCartBtn.textContent = `Add "${selectedGarment.name}" to Cart — $${selectedGarment.price}`;
+      setTimeout(function() {
+        if (selectedGarment) {
+          addToCartBtn.textContent = 'Add "' + selectedGarment.name + '" to Cart \u2014 $' + selectedGarment.price;
+        }
         addToCartBtn.classList.remove('added');
-      }, 2000);
+      }, 2200);
     });
-    // ── Share / snapshot ────────────────────────────────────────────────
-    shareBtnEl.addEventListener('click', async () => {
-      const canvas = outputCanvas;
 
-      // Try Web Share API first (mobile — shows native share sheet)
+    // Share / snapshot
+    shareBtnEl.addEventListener('click', async function() {
+      var canvas = outputCanvas;
       if (navigator.share && navigator.canShare) {
         try {
-          canvas.toBlob(async (blob) => {
-            const file = new File([blob], 'my-tryon.png', { type: 'image/png' });
+          canvas.toBlob(async function(blob) {
+            var file = new File([blob], 'my-tryon.png', { type: 'image/png' });
             if (navigator.canShare({ files: [file] })) {
               await navigator.share({
                 title: 'Check out how I look in this!',
-                text:  `I tried on ${selectedGarment?.name} with AR Mirror`,
+                text:  'I tried on ' + (selectedGarment ? selectedGarment.name : '') + ' with AR Mirror',
                 files: [file],
               });
               return;
             }
-            // Fall through to download
             downloadCanvas(canvas);
           }, 'image/png');
           return;
@@ -720,54 +1024,61 @@
     });
 
     function downloadCanvas(canvas) {
-      canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
+      canvas.toBlob(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a   = document.createElement('a');
         a.href     = url;
-        a.download = `ar-mirror-${selectedGarment?.id || 'tryon'}-${Date.now()}.png`;
+        a.download = 'ar-mirror-' + (selectedGarment ? selectedGarment.id : 'tryon') + '-' + Date.now() + '.png';
         a.click();
         URL.revokeObjectURL(url);
         shareBtnEl.classList.add('flash');
-        setTimeout(() => shareBtnEl.classList.remove('flash'), 600);
+        setTimeout(function() { shareBtnEl.classList.remove('flash'); }, 600);
       }, 'image/png');
     }
-    // ── Init & start ──────────────────────────────────────────────────────────
-    const app = new App({ brandId: 'demo', garments: GARMENTS });
 
-    // Start error telemetry ASAP (captures any init failures)
+    // Onboarding toast
+    var toastDismissed = false;
+    function dismissToast() {
+      if (toastDismissed) return;
+      toastDismissed = true;
+      onboardingToast.classList.remove('visible');
+    }
+    toastCloseBtn.addEventListener('click', dismissToast);
+
+    function showOnboarding() {
+      if (sessionStorage.getItem('ar-mirror-onboarded')) return;
+      setTimeout(function() {
+        onboardingToast.classList.add('visible');
+        sessionStorage.setItem('ar-mirror-onboarded', '1');
+        setTimeout(dismissToast, 8000);
+      }, 1200);
+    }
+
+    // Init & start
+    var app = new App({ brandId: 'demo', garments: GARMENTS });
     initErrorTelemetry(app._analytics._sessionId);
 
-    // Tracking dot state
-    let _trackingActive = false;
-
     try {
-      statusText.textContent = 'Starting camera…';
+      statusText.textContent = 'Starting camera\u2026';
       await app.startCamera(videoEl, outputCanvas, clothCanvas);
-
-      statusText.textContent = 'Loading AI models… (~10s first load)';
+      statusText.textContent = 'Loading AI models\u2026 (~10s first load)';
       await app.init(videoEl, outputCanvas, clothCanvas, fpsDisplay);
     } catch (err) {
       console.error('[AR Mirror] Init failed:', err);
-      statusText.textContent = '⚠ ' + (err.message || 'Init failed — check console');
+      statusText.textContent = '\u26A0 ' + (err.message || 'Init failed \u2014 check console');
       statusText.style.color = '#f87171';
-      // Keep overlay visible so user sees the error
       throw err;
     }
 
-    // Hide loading overlay
     statusOverlay.classList.add('hidden');
-
-    // Auto-hide pose guide after 8 seconds
-    setTimeout(() => poseGuide.classList.add('hidden'), 8000);
-
+    setTimeout(function() { poseGuide.classList.add('hidden'); }, 8000);
     app.start();
-
-    // Enable share button once app is running
     shareBtnEl.disabled = false;
+    showOnboarding();
 
-    // ── Tracking indicator update (every 500ms) ───────────────────────────────
-    setInterval(() => {
-      const lm = app._latestLandmarks;
+    // Tracking indicator
+    setInterval(function() {
+      var lm = app._latestLandmarks;
       if (lm && PoseTracker.isConfident(lm)) {
         trackingDot.classList.add('active');
         poseGuide.classList.add('hidden');
@@ -777,9 +1088,9 @@
       }
     }, 500);
 
-    // ── Stats panel update ────────────────────────────────────────────────────
-    setInterval(() => {
-      const summary = app._analytics.getSummary();
+    // Stats panel
+    setInterval(function() {
+      var summary = app._analytics.getSummary();
       statEngagement.textContent = summary.tryonEngagement;
       statDuration.textContent   = summary.durationSec + 's';
     }, 1000);

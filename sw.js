@@ -9,7 +9,7 @@
  * After the first visit, the app loads in ~0.5s instead of ~10s.
  */
 
-const CACHE_VERSION  = 'ar-mirror-v3';
+const CACHE_VERSION  = 'ar-mirror-v4';
 const STATIC_CACHE   = CACHE_VERSION + '-static';
 const MODEL_CACHE    = CACHE_VERSION + '-models';
 
