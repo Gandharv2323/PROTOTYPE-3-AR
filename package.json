@@ -1,0 +1,12 @@
+{
+  "name": "ar-mirror",
+  "version": "0.1.0",
+  "description": "Real-time browser-based AR virtual try-on",
+  "scripts": {
+    "start": "node server.js",
+    "dev":   "node server.js"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": { "node": ">=16" }
+}

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400">
+  <defs>
+    <linearGradient id="navyGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#1a2744"/>
+      <stop offset="45%"  stop-color="#213256"/>
+      <stop offset="100%" stop-color="#1a2744"/>
+    </linearGradient>
+    <linearGradient id="navySlL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#16213a"/>
+      <stop offset="100%" stop-color="#1e2e50"/>
+    </linearGradient>
+    <linearGradient id="navySlR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#1e2e50"/>
+      <stop offset="100%" stop-color="#16213a"/>
+    </linearGradient>
+  </defs>
+  <!-- Left sleeve -->
+  <path d="M76,82 L46,144 L56,150 L88,132 L90,96 Z" fill="url(#navySlL)" stroke="#111e38" stroke-width="1.5"/>
+  <!-- Right sleeve -->
+  <path d="M224,82 L254,144 L244,150 L212,132 L210,96 Z" fill="url(#navySlR)" stroke="#111e38" stroke-width="1.5"/>
+  <!-- Main body -->
+  <path d="M88,78 L90,96 L90,355 L210,355 L210,96 L212,78 L182,58 L168,76 L150,68 L132,76 L118,58 Z"
+    fill="url(#navyGrad)" stroke="#111e38" stroke-width="1.5"/>
+  <!-- Left lapel -->
+  <path d="M118,58 L132,76 L150,110 L138,115 L100,90 L106,64 Z"
+    fill="#1d2b48" stroke="#111e38" stroke-width="1.2"/>
+  <!-- Right lapel -->
+  <path d="M182,58 L168,76 L150,110 L162,115 L200,90 L194,64 Z"
+    fill="#1d2b48" stroke="#111e38" stroke-width="1.2"/>
+  <!-- Lapel notch lines -->
+  <line x1="138" y1="115" x2="150" y2="110" stroke="#2a3f6a" stroke-width="0.8"/>
+  <line x1="162" y1="115" x2="150" y2="110" stroke="#2a3f6a" stroke-width="0.8"/>
+  <!-- Buttons -->
+  <circle cx="150" cy="170" r="5" fill="#162036" stroke="#0e1828" stroke-width="1.5"/>
+  <circle cx="150" cy="200" r="5" fill="#162036" stroke="#0e1828" stroke-width="1.5"/>
+  <circle cx="150" cy="230" r="5" fill="#162036" stroke="#0e1828" stroke-width="1.5"/>
+  <!-- Breast pocket -->
+  <rect x="168" y="150" width="32" height="22" rx="2" fill="#1c2d4a" stroke="#111e38" stroke-width="1"/>
+  <!-- Pocket flaps -->
+  <rect x="104" y="254" width="36" height="10" rx="2" fill="#1c2d4a" stroke="#111e38" stroke-width="1"/>
+  <rect x="160" y="254" width="36" height="10" rx="2" fill="#1c2d4a" stroke="#111e38" stroke-width="1"/>
+  <!-- Sleeve buttons -->
+  <circle cx="60" cy="148" r="3" fill="#162036" stroke="#0e1828" stroke-width="1"/>
+  <circle cx="66" cy="155" r="3" fill="#162036" stroke="#0e1828" stroke-width="1"/>
+  <circle cx="240" cy="148" r="3" fill="#162036" stroke="#0e1828" stroke-width="1"/>
+  <circle cx="234" cy="155" r="3" fill="#162036" stroke="#0e1828" stroke-width="1"/>
+  <!-- Side seams -->
+  <line x1="90" y1="130" x2="90" y2="355" stroke="#16213a" stroke-width="0.8"/>
+  <line x1="210" y1="130" x2="210" y2="355" stroke="#16213a" stroke-width="0.8"/>
+</svg>

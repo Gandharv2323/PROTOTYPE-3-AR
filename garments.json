@@ -1,0 +1,46 @@
+[
+  {
+    "id": "shirt-white",
+    "name": "Classic White Shirt",
+    "price": 89,
+    "type": "shirt",
+    "imageUrl": "assets/garments/shirt_white.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["White"],
+    "description": "Clean Oxford-weave button-down. Slim fit."
+  },
+  {
+    "id": "hoodie-black",
+    "name": "Black Hoodie",
+    "price": 120,
+    "type": "hoodie",
+    "imageUrl": "assets/garments/hoodie_black.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL","XXL"],
+    "colors": ["Black"],
+    "description": "Heavyweight 400gsm fleece pullover."
+  },
+  {
+    "id": "jacket-navy",
+    "name": "Navy Jacket",
+    "price": 195,
+    "type": "jacket",
+    "imageUrl": "assets/garments/jacket_navy.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Navy"],
+    "description": "Structured single-breasted blazer."
+  },
+  {
+    "id": "shirt-stripe",
+    "name": "Stripe Oxford",
+    "price": 95,
+    "type": "shirt",
+    "imageUrl": "assets/garments/shirt_stripe.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Blue/White"],
+    "description": "Bengal-stripe Oxford with button-down collar."
+  }
+]

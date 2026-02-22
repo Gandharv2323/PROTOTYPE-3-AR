@@ -1,0 +1,6 @@
+node_modules/
+certs/
+data/*.ndjson
+.DS_Store
+Thumbs.db
+*.pem
