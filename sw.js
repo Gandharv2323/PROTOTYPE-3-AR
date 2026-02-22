@@ -9,7 +9,7 @@
  * After the first visit, the app loads in ~0.5s instead of ~10s.
  */
 
-const CACHE_VERSION  = 'ar-mirror-v2';
+const CACHE_VERSION  = 'ar-mirror-v3';
 const STATIC_CACHE   = CACHE_VERSION + '-static';
 const MODEL_CACHE    = CACHE_VERSION + '-models';
 
@@ -27,6 +27,18 @@ const STATIC_ASSETS = [
   '/assets/garments/hoodie_black.png',
   '/assets/garments/jacket_navy.png',
   '/assets/garments/shirt_stripe.png',
+  '/assets/garments/navy_blazer.png',
+  '/assets/garments/black_tee.png',
+  '/assets/garments/charcoal_shirt.png',
+  '/assets/garments/dark_navy_coat.png',
+  '/assets/garments/sage_green_top.png',
+  '/assets/garments/olive_jacket.png',
+  '/assets/garments/teal_polo.png',
+  '/assets/garments/steel_blue_shirt.png',
+  '/assets/garments/indigo_sweater.png',
+  '/assets/garments/black_vest.png',
+  '/assets/garments/jet_black_tee.png',
+  '/assets/garments/forest_green_top.png',
   '/garments.json',
 ];
 

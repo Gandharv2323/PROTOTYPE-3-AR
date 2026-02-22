@@ -42,5 +42,137 @@
     "sizes": ["XS","S","M","L","XL"],
     "colors": ["Blue/White"],
     "description": "Bengal-stripe Oxford with button-down collar."
+  },
+  {
+    "id": "navy-blazer",
+    "name": "Navy Blazer",
+    "price": 210,
+    "type": "jacket",
+    "imageUrl": "assets/garments/navy_blazer.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Navy"],
+    "description": "Classic navy blazer with subtle texture."
+  },
+  {
+    "id": "black-tee",
+    "name": "Black Crew Tee",
+    "price": 45,
+    "type": "shirt",
+    "imageUrl": "assets/garments/black_tee.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Black"],
+    "description": "Essential cotton crew-neck tee. Relaxed fit."
+  },
+  {
+    "id": "charcoal-shirt",
+    "name": "Charcoal Dress Shirt",
+    "price": 85,
+    "type": "shirt",
+    "imageUrl": "assets/garments/charcoal_shirt.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Charcoal"],
+    "description": "Dark charcoal button-front dress shirt."
+  },
+  {
+    "id": "dark-navy-coat",
+    "name": "Dark Navy Overcoat",
+    "price": 275,
+    "type": "jacket",
+    "imageUrl": "assets/garments/dark_navy_coat.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Dark Navy"],
+    "description": "Tailored mid-length overcoat in deep navy."
+  },
+  {
+    "id": "sage-green-top",
+    "name": "Sage Green Top",
+    "price": 65,
+    "type": "shirt",
+    "imageUrl": "assets/garments/sage_green_top.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Sage"],
+    "description": "Light sage green relaxed-fit top."
+  },
+  {
+    "id": "olive-jacket",
+    "name": "Olive Field Jacket",
+    "price": 185,
+    "type": "jacket",
+    "imageUrl": "assets/garments/olive_jacket.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Olive"],
+    "description": "Military-inspired field jacket in muted olive."
+  },
+  {
+    "id": "teal-polo",
+    "name": "Teal Polo",
+    "price": 75,
+    "type": "shirt",
+    "imageUrl": "assets/garments/teal_polo.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Teal"],
+    "description": "Dark teal piqué polo with subtle collar detail."
+  },
+  {
+    "id": "steel-blue-shirt",
+    "name": "Steel Blue Shirt",
+    "price": 90,
+    "type": "shirt",
+    "imageUrl": "assets/garments/steel_blue_shirt.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Steel Blue"],
+    "description": "Soft steel-blue chambray shirt. Regular fit."
+  },
+  {
+    "id": "indigo-sweater",
+    "name": "Indigo Crewneck Sweater",
+    "price": 110,
+    "type": "hoodie",
+    "imageUrl": "assets/garments/indigo_sweater.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Indigo"],
+    "description": "Indigo merino-blend crewneck sweater."
+  },
+  {
+    "id": "black-vest",
+    "name": "Black Utility Vest",
+    "price": 145,
+    "type": "jacket",
+    "imageUrl": "assets/garments/black_vest.png",
+    "brand": "AR Mirror",
+    "sizes": ["S","M","L","XL"],
+    "colors": ["Black"],
+    "description": "Sleek quilted utility vest in jet black."
+  },
+  {
+    "id": "jet-black-tee",
+    "name": "Jet Black V-Neck",
+    "price": 50,
+    "type": "shirt",
+    "imageUrl": "assets/garments/jet_black_tee.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Black"],
+    "description": "Premium Pima cotton V-neck tee."
+  },
+  {
+    "id": "forest-green-top",
+    "name": "Forest Green Top",
+    "price": 70,
+    "type": "shirt",
+    "imageUrl": "assets/garments/forest_green_top.png",
+    "brand": "AR Mirror",
+    "sizes": ["XS","S","M","L","XL"],
+    "colors": ["Forest Green"],
+    "description": "Rich forest-green casual top with soft finish."
   }
 ]
