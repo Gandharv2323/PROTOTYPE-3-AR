@@ -61,12 +61,12 @@ function securityHeaders(ext) {
     // Content-Security-Policy — tighten for production
     'Content-Security-Policy': [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "media-src 'self' blob:",
-      "connect-src 'self' https://cdn.jsdelivr.net",
-      "worker-src 'self' blob:",
+      "connect-src 'self' blob: https://cdn.jsdelivr.net",
+      "worker-src 'self' blob: https://cdn.jsdelivr.net",
       "frame-ancestors 'none'",
     ].join('; '),
     'X-Content-Type-Options':   'nosniff',

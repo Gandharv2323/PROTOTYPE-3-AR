@@ -22,11 +22,13 @@ import { Analytics }            from './analytics.js';
 export class App {
   constructor(config = {}) {
     // Canvases
-    this._videoEl       = null;  // hidden <video>
-    this._outputCanvas  = null;  // visible output <canvas>
-    this._outCtx        = null;
-    this._clothCanvas   = null;  // hidden WebGL canvas
-    this._clothRenderer = null;
+    this._videoEl        = null;  // hidden <video>
+    this._outputCanvas   = null;  // visible output <canvas>
+    this._outCtx         = null;
+    this._clothCanvas    = null;  // hidden WebGL canvas (upper body)
+    this._clothRenderer  = null;
+    this._clothCanvas2   = null;  // hidden WebGL canvas (lower body)
+    this._clothRenderer2 = null;
 
     // Modules
     this._poseTracker   = null;
@@ -34,10 +36,12 @@ export class App {
     this._analytics     = new Analytics(config.brandId || 'demo');
 
     // State
-    this._latestLandmarks = null;
-    this._latestMask      = null;
-    this._currentGarment  = null;
-    this._garments        = config.garments || [];
+    this._latestLandmarks  = null;
+    this._latestMask       = null;
+    this._currentGarment   = null;
+    this._lowerGarment     = null;   // pants / skirt
+    this._lowerClothOpacity = 0;
+    this._garments         = config.garments || [];
     this._running         = false;
     this._lastFrameTime   = 0;
     this._fpsEl           = null;
@@ -118,6 +122,16 @@ export class App {
     this._clothCanvas.width   = w;
     this._clothCanvas.height  = h;
 
+    // Init second canvas for lower body
+    if (!this._clothCanvas2) {
+      this._clothCanvas2 = new OffscreenCanvas(w, h);
+      this._clothRenderer2 = new ClothRenderer(this._clothCanvas2);
+      this._clothRenderer2.init();
+    } else {
+      this._clothCanvas2.width  = w;
+      this._clothCanvas2.height = h;
+    }
+
     console.log(`[App] Camera: ${w}x${h}`);
   }
 
@@ -142,6 +156,23 @@ export class App {
     this._clothRenderer.setGarmentType(garment.type || 'shirt');
     this._analytics.garmentView(garment.id, garment.name);
     console.log('[App] Garment loaded:', garment.name);
+  }
+
+  async selectLowerGarment(garment) {
+    if (!this._clothRenderer2) {
+      console.warn('[App] Lower renderer not ready yet — camera may not be started');
+      return;
+    }
+    this._lowerGarment      = garment;
+    this._lowerClothOpacity = 0;
+    await this._clothRenderer2.loadGarment(garment.imageUrl);
+    this._clothRenderer2.setGarmentType(garment.type || 'pants');
+    console.log('[App] Lower garment loaded:', garment.name);
+  }
+
+  clearLowerGarment() {
+    this._lowerGarment      = null;
+    this._lowerClothOpacity = 0;
   }
 
   start() {
@@ -276,8 +307,82 @@ export class App {
       }
     }
 
+    // ── 4. Lower body (pants/skirt) ─────────────────────────────────────────
+    if (this._lowerGarment && this._clothRenderer2 && shouldRenderCloth) {
+      const mirroredLm = lm.map(p => ({ ...p, x: 1 - p.x }));
+      const lowerQuad  = PoseTracker.computeLowerBodyQuad(
+        mirroredLm, w, h,
+        this._lowerGarment.type || 'pants',
+        this._sizeMultiplier * this._heightMultiplier
+      );
+      if (lowerQuad) {
+        const targetOpacity = isConfident ? 1.0 : 0.0;
+        this._lowerClothOpacity += (targetOpacity - this._lowerClothOpacity) * 0.12;
+        this._clothRenderer2.render(lowerQuad);
+        ctx.save();
+        ctx.globalAlpha = this._lowerClothOpacity;
+        ctx.drawImage(this._clothCanvas2, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    // ── 5. Punch arms back over cloth (fixes sticker effect) ────────────────
+    if (mask && lm && (this._currentGarment || this._lowerGarment)) {
+      this._drawArmsOverCloth(ctx, lm, mask, w, h);
+    }
+
     // ── Debug overlay (D key) ──────────────────────────────────────────────
     if (this._debugMode) this._drawDebug(ctx, this._latestLandmarks, w, h);
+  }
+
+  /**
+   * Redraw arm pixels OVER the cloth so arms appear in front of shirt.
+   * Builds a polygon path from shoulder→elbow→wrist on each side,
+   * then redraws the person (video + mask) clipped to that region.
+   */
+  _drawArmsOverCloth(ctx, landmarks, mask, w, h) {
+    if (!landmarks) return;
+    const px = (idx) => ({
+      x: (1 - landmarks[idx].x) * w,
+      y:  landmarks[idx].y * h,
+    });
+
+    const visOf = (idx) => landmarks[idx]?.visibility ?? 0;
+
+    // Build paths for each arm — skip if key points not tracked
+    const armPolygons = [];
+
+    // Left arm: chest-center → left shoulder → left elbow → (wrist)
+    if (visOf(11) > 0.4 && visOf(13) > 0.3) {
+      const sh = px(11); const el = px(13);
+      const wr = visOf(15) > 0.3 ? px(15) : { x: el.x - (sh.y - el.y) * 0.15, y: el.y + (sh.y - el.y) * 0.6 };
+      const pad = 22;
+      armPolygons.push([ {x: sh.x + pad, y: sh.y - pad}, sh, el, wr, {x: wr.x - pad, y: wr.y}, {x: el.x - pad, y: el.y}, {x: sh.x - pad, y: sh.y + pad} ]);
+    }
+
+    // Right arm: chest-center → right shoulder → right elbow → (wrist)
+    if (visOf(12) > 0.4 && visOf(14) > 0.3) {
+      const sh = px(12); const el = px(14);
+      const wr = visOf(16) > 0.3 ? px(16) : { x: el.x + (el.y - sh.y) * 0.15, y: el.y + (sh.y - el.y) * 0.6 };
+      const pad = 22;
+      armPolygons.push([ {x: sh.x - pad, y: sh.y - pad}, sh, el, wr, {x: wr.x + pad, y: wr.y}, {x: el.x + pad, y: el.y}, {x: sh.x + pad, y: sh.y + pad} ]);
+    }
+
+    if (armPolygons.length === 0) return;
+
+    // Get person pixels (reuse cached tmp canvas which was already composited)
+    if (!this._tmpCanvas) return;
+
+    ctx.save();
+    ctx.beginPath();
+    for (const poly of armPolygons) {
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i].x, poly[i].y);
+      ctx.closePath();
+    }
+    ctx.clip();
+    ctx.drawImage(this._tmpCanvas, 0, 0);
+    ctx.restore();
   }
 
   /**

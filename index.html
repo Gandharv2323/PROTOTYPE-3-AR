@@ -742,6 +742,39 @@
         transition-duration: 0.01ms !important;
       }
     }
+
+    /* ── Upload-to-AR zone ─────────────────────────────────────────────── */
+    .upload-type-row {
+      display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .upload-type-btn {
+      flex: 1; min-width: 44px; padding: 5px 4px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 10.5px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.18s var(--ease-out);
+    }
+    .upload-type-btn:hover { border-color: var(--border-hi); color: var(--fg); }
+    .upload-type-btn.active {
+      background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600;
+    }
+    .upload-zone {
+      display: block;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 10px;
+    }
+    .upload-zone:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.025); }
+    .upload-zone input[type=file] { display: none; }
+    .upload-zone-label { font-size: 11.5px; color: var(--muted); pointer-events: none; }
   </style>
 </head>
 <body>
@@ -780,6 +813,18 @@
           <span>Select Garment</span>
           <span class="count-badge" id="garment-count">0</span>
         </div>
+        <!-- Upload any garment image and try it on in AR -->
+        <div class="upload-type-row" id="upload-type-row">
+          <button class="upload-type-btn active" data-type="shirt">Shirt</button>
+          <button class="upload-type-btn" data-type="hoodie">Hoodie</button>
+          <button class="upload-type-btn" data-type="jacket">Jacket</button>
+          <button class="upload-type-btn" data-type="pants">Pants</button>
+        </div>
+        <label class="upload-zone" for="custom-upload-input">
+          <input type="file" id="custom-upload-input" accept="image/*">
+          <div class="upload-zone-label" id="upload-zone-label">&#x1F4E4; Upload garment &mdash; auto BG removal</div>
+        </label>
+
         <div class="garment-grid" id="garment-grid">
           <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
           <div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-info"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></div>
@@ -1094,6 +1139,106 @@
       statEngagement.textContent = summary.tryonEngagement;
       statDuration.textContent   = summary.durationSec + 's';
     }, 1000);
+
+    // ── Upload-to-AR ───────────────────────────────────────────────────────
+    /**
+     * Remove background via flood-fill from image corners.
+     * Returns an object-URL pointing to a transparent PNG.
+     */
+    async function removeBg(file) {
+      return new Promise(function(resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function() {
+          var MAX = 600;
+          var w = img.naturalWidth, h = img.naturalHeight;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          var ctx2 = canvas.getContext('2d');
+          ctx2.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          var d = ctx2.getImageData(0, 0, w, h);
+          var px = d.data;
+          var sample = function(x, y) { var i = (y * w + x) * 4; return [px[i], px[i+1], px[i+2]]; };
+          var corners = [sample(0,0), sample(w-1,0), sample(0,h-1), sample(w-1,h-1)];
+          var TOL = 42 * 3;
+          var isBg = function(r, g, b) {
+            return corners.some(function(c) {
+              return Math.abs(r-c[0]) + Math.abs(g-c[1]) + Math.abs(b-c[2]) < TOL;
+            });
+          };
+          var visited = new Uint8Array(w * h);
+          var stack = [];
+          for (var x = 0; x < w; x++) { stack.push([x, 0]); stack.push([x, h-1]); }
+          for (var y = 1; y < h-1; y++) { stack.push([0, y]); stack.push([w-1, y]); }
+          while (stack.length) {
+            var pt = stack.pop();
+            var sx = pt[0], sy = pt[1];
+            if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
+            var idx = sy * w + sx;
+            if (visited[idx]) continue;
+            var pi = idx * 4;
+            if (!isBg(px[pi], px[pi+1], px[pi+2])) continue;
+            visited[idx] = 1;
+            px[pi+3] = 0;
+            stack.push([sx+1, sy], [sx-1, sy], [sx, sy+1], [sx, sy-1]);
+          }
+          ctx2.putImageData(d, 0, 0);
+          canvas.toBlob(function(blob) { resolve(URL.createObjectURL(blob)); }, 'image/png');
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    // Upload type selector
+    var uploadType = 'shirt';
+    document.querySelectorAll('.upload-type-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.upload-type-btn').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        uploadType = btn.dataset.type;
+      });
+    });
+
+    // File upload handler
+    var uploadLabel = document.getElementById('upload-zone-label');
+    document.getElementById('custom-upload-input').addEventListener('change', async function(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      uploadLabel.textContent = '\u23F3 Removing background\u2026';
+      try {
+        var cleanUrl = await removeBg(file);
+        var garment = {
+          id: 'custom-' + Date.now(),
+          name: file.name.replace(/\.[^.]+$/, ''),
+          price: 0,
+          type: uploadType,
+          imageUrl: cleanUrl,
+          brand: 'Custom Upload',
+          sizes: ['S', 'M', 'L'],
+          colors: ['Custom'],
+          description: 'Uploaded garment',
+        };
+        if (uploadType === 'pants') {
+          await app.selectLowerGarment(garment);
+        } else {
+          await app.selectGarment(garment);
+          selectedGarment = garment;
+          addToCartBtn.disabled = false;
+          addToCartBtn.textContent = 'Add \"' + garment.name + '\" to Cart';
+          activePill.textContent = garment.name;
+          activePill.classList.add('visible');
+          document.querySelectorAll('.garment-card').forEach(function(c) { c.classList.remove('selected'); });
+        }
+        uploadLabel.textContent = '\u2705 ' + garment.name + ' \u2014 tap to change';
+      } catch (err) {
+        uploadLabel.textContent = '\u274C Failed \u2014 try another image';
+        console.error('[Upload]', err);
+      }
+      e.target.value = '';
+    });
   </script>
 </body>
 </html>

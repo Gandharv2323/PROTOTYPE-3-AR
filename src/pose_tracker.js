@@ -14,8 +14,14 @@ export const LM = {
   RIGHT_SHOULDER: 12,
   LEFT_ELBOW:     13,
   RIGHT_ELBOW:    14,
+  LEFT_WRIST:     15,
+  RIGHT_WRIST:    16,
   LEFT_HIP:       23,
   RIGHT_HIP:      24,
+  LEFT_KNEE:      25,
+  RIGHT_KNEE:     26,
+  LEFT_ANKLE:     27,
+  RIGHT_ANKLE:    28,
   NOSE:           0,
   LEFT_EAR:       7,
   RIGHT_EAR:      8,
@@ -110,10 +116,22 @@ export class PoseTracker {
 
     // Horizontal extent: use ELBOW positions for natural sleeve coverage.
     // Fall back to shoulder+padding if elbows are tucked in.
+    // Use wrist positions when visible — sleeves follow all the way to the wrist
+    const lw = lm(LM.LEFT_WRIST);
+    const rw = lm(LM.RIGHT_WRIST);
+    const lwVis = landmarks[LM.LEFT_WRIST]?.visibility  ?? 0;
+    const rwVis = landmarks[LM.RIGHT_WRIST]?.visibility ?? 0;
+
     const elbowPad    = shoulderWidth * 0.18 * sizeMultiplier;
     const shoulderPad = shoulderWidth * 0.28 * sizeMultiplier;
-    const leftX  = Math.min(leftEl.x  - elbowPad,  leftSh.x  - shoulderPad);
-    const rightX = Math.max(rightEl.x + elbowPad, rightSh.x + shoulderPad);
+    const wristPad    = shoulderWidth * 0.08 * sizeMultiplier;
+
+    // Extend sleeve to wrist when wrist is visible and outside elbow
+    const leftWristX  = lwVis > 0.4 ? Math.min(lw.x - wristPad, leftEl.x - elbowPad)  : leftEl.x  - elbowPad;
+    const rightWristX = rwVis > 0.4 ? Math.max(rw.x + wristPad, rightEl.x + elbowPad) : rightEl.x + elbowPad;
+
+    const leftX  = Math.min(leftWristX,  leftSh.x  - shoulderPad);
+    const rightX = Math.max(rightWristX, rightSh.x + shoulderPad);
 
     // Top edge: lift above shoulders proportionally (collar coverage)
     // Use nose-to-shoulder distance so collar sits at the right height.
@@ -142,6 +160,64 @@ export class PoseTracker {
       { x: rightX,     y: topRightY },  // top-right
       { x: botRightX,  y: botRightY },  // bottom-right
       { x: botLeftX,   y: botLeftY  },  // bottom-left
+    ];
+  }
+
+  /**
+   * Compute lower body (pants/skirt) warp quad from hip → knee → ankle.
+   * Returns [topLeft, topRight, bottomRight, bottomLeft] in canvas pixels.
+   */
+  static computeLowerBodyQuad(landmarks, canvasW, canvasH, garmentType = 'pants', sizeMultiplier = 1.0) {
+    if (!landmarks) return null;
+    const lm = (idx) => ({ x: landmarks[idx].x * canvasW, y: landmarks[idx].y * canvasH });
+
+    const lh = lm(LM.LEFT_HIP);   const rh = lm(LM.RIGHT_HIP);
+    const lk = lm(LM.LEFT_KNEE);  const rk = lm(LM.RIGHT_KNEE);
+    const la = lm(LM.LEFT_ANKLE); const ra = lm(LM.RIGHT_ANKLE);
+
+    const lkVis = landmarks[LM.LEFT_KNEE]?.visibility  ?? 0;
+    const rkVis = landmarks[LM.RIGHT_KNEE]?.visibility ?? 0;
+    const laVis = landmarks[LM.LEFT_ANKLE]?.visibility  ?? 0;
+    const raVis = landmarks[LM.RIGHT_ANKLE]?.visibility ?? 0;
+
+    // Need at least hips to render
+    if ((landmarks[LM.LEFT_HIP]?.visibility ?? 0) < 0.4 ||
+        (landmarks[LM.RIGHT_HIP]?.visibility ?? 0) < 0.4) return null;
+
+    const hipW  = Math.abs(rh.x - lh.x);
+    const sidePad = hipW * 0.18 * sizeMultiplier;
+
+    // Top edge: at waist (just above hips)
+    const waistLift = hipW * 0.12;
+    const topY  = Math.min(lh.y, rh.y) - waistLift;
+    const leftX  = Math.min(lh.x, rh.x) - sidePad;
+    const rightX = Math.max(lh.x, rh.x) + sidePad;
+
+    // Bottom edge: ankles if visible, else knees, else estimate
+    let botY;
+    if ((laVis > 0.4 || raVis > 0.4)) {
+      botY = Math.max(
+        laVis > 0.4 ? la.y : 0,
+        raVis > 0.4 ? ra.y : 0
+      ) + hipW * 0.08 * sizeMultiplier;
+    } else if (lkVis > 0.4 || rkVis > 0.4) {
+      botY = Math.max(
+        lkVis > 0.4 ? lk.y : 0,
+        rkVis > 0.4 ? rk.y : 0
+      ) + hipW * 0.12 * sizeMultiplier;
+    } else {
+      // Estimate: hip + 2x hip-to-hip width
+      botY = Math.max(lh.y, rh.y) + hipW * 1.8 * sizeMultiplier;
+    }
+
+    // Slight taper at hem (pants narrow at ankles)
+    const taperBot = sidePad * (garmentType === 'skirt' ? 1.3 : 0.6);
+
+    return [
+      { x: leftX,           y: topY },   // top-left
+      { x: rightX,          y: topY },   // top-right
+      { x: rightX - taperBot, y: botY }, // bottom-right
+      { x: leftX  + taperBot, y: botY }, // bottom-left
     ];
   }
 

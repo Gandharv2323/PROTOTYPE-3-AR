@@ -235,7 +235,7 @@ export class ClothRenderer {
     // Uniforms — use cached locations (zero lookup cost)
     gl.uniform2f(locs.uRes, w, h);
     gl.uniform1f(locs.uOpacity, this._opacity);
-    gl.uniform1f(locs.uEdge, 0.01);  // 1% feather — garment PNG defines own alpha
+    gl.uniform1f(locs.uEdge, 0.05);  // 5% feather — softer edges, less sticker look
 
     // Bind texture
     gl.activeTexture(gl.TEXTURE0);
