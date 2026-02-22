@@ -27,17 +27,21 @@ No Python runtime. No cloud GPU. No app install. Works on laptop, tablet, and mo
 | Feature | Details |
 |---|---|
 | **Real-time pose tracking** | MediaPipe Pose @ 30fps, 1€ filter smoothing |
-| **Cloth warping** | WebGL1 4-fan perspective-correct UV warp |
+| **Cloth warping** | WebGL1 5-point perspective-correct UV warp (shoulders, hips, center) |
 | **Person segmentation** | MediaPipe SelfieSegmentation — background dim/desaturate |
-| **16-garment catalog** | Shirts, jackets, hoodies — real flat-lay images, transparent PNGs |
+| **Arms-over-cloth** | Person arm pixels are re-composited OVER cloth each frame — no sticker effect |
+| **Wrist sleeve tracking** | Sleeves extend to wrist when MediaPipe detects them — natural arm movement |
+| **Full body (pants)** | Lower-body quad: hip → knee → ankle with hem taper — second WebGL renderer |
+| **Upload any garment** | Upload PNG/JPG → client-side flood-fill BG removal → instant AR try-on |
+| **16-garment preset catalog** | Shirts, jackets, hoodies — real flat-lay images, transparent PNGs |
 | **Size chips** | XS / S / M / L / XL (0.82× — 1.22× body-proportional scale) |
 | **Height calibration** | 140–220 cm input → scales garment fit to real body |
 | **Share / snapshot** | Web Share API (mobile native sheet) or direct PNG download |
-| **skeleton debug** | `D` key toggles landmark overlay |
+| **Skeleton debug** | `D` key toggles landmark overlay |
 | **Analytics** | Session events, try-on engagement, add-to-cart telemetry |
 | **Service worker** | Caches models + assets → subsequent loads in ~0.5s |
-| **CSP headers** | Content Security Policy, COOP/COEP, rate limiting |
-| **Health check** | `GET /healthz` → 200 `ok` (Railway / Railway health probes) |
+| **CSP headers** | Content Security Policy with `wasm-unsafe-eval` for MediaPipe WASM |
+| **Health check** | `GET /healthz` → 200 `ok` (Railway health probes) |
 
 ---
 
@@ -77,7 +81,7 @@ No Python runtime. No cloud GPU. No app install. Works on laptop, tablet, and mo
 
 ## Garment Catalog
 
-16 real garment PNGs sourced from VITON-HD dataset and processed with PIL threshold background removal (R,G,B > 230 → transparent), resized to max 600px.
+16 preset garment PNGs sourced from VITON-HD dataset and processed with PIL threshold background removal (R,G,B > 230 → transparent), resized to max 600px.
 
 | Type | Items |
 |---|---|
@@ -86,6 +90,8 @@ No Python runtime. No cloud GPU. No app install. Works on laptop, tablet, and mo
 | Hoodies | Black Hoodie, Indigo Crewneck Sweater |
 
 Extend the catalog by adding PNGs to `assets/garments/` and entries to `garments.json`.
+
+**Or upload your own** — click the upload zone in the sidebar, select Shirt/Hoodie/Jacket/Pants, then pick any image. Background is removed client-side automatically.
 
 ---
 
@@ -181,10 +187,16 @@ ar-mirror/
 ## How the Cloth Warping Works
 
 1. MediaPipe returns 33 body landmarks (normalized 0–1 x/y/visibility)
-2. `computeClothQuad()` extracts shoulder and hip landmarks, expands by `sizeMultiplier × heightMultiplier`
-3. A perspective-correct 4-fan UV warp is computed in a WebGL1 fragment shader
-4. The garment PNG (with transparency) is rendered onto a hidden `<canvas>`
-5. The frame composite order: background (desaturated) → person cutout (full brightness) → cloth overlay → UI
+2. **Upper body**: `computeClothQuad()` extracts shoulder + hip landmarks, expands sleeve width to wrists when visible
+3. **Lower body**: `computeLowerBodyQuad()` maps hip → knee → ankle with slight hem taper for pants/skirts
+4. A perspective-correct 5-point UV warp is computed in a WebGL1 fragment shader (TL, TR, BR, BL, center)
+5. The garment PNG is rendered onto a hidden `<canvas>` — one per garment slot (upper + lower)
+6. **Arms punch-out**: after cloth rendering, arm polygons (shoulder→elbow→wrist) are re-drawn from the live person frame, composited on top of the cloth — this prevents the floating sticker effect
+7. Frame composite order: background (desaturated) → person cutout (full brightness) → upper cloth → lower cloth → arm pixels → UI
+
+### Upload-to-AR (client-side BG removal)
+
+When you upload a garment image, a flood-fill algorithm starts from all four image corners, samples the background color, and zeroes out any pixel matching within a Manhattan-distance tolerance of 42. The result is a transparent PNG rendered to an object-URL and handed directly to the WebGL renderer — no server round-trip, no API key required.
 
 ---
 
@@ -204,10 +216,13 @@ The render loop is decoupled from inference — canvas updates at 60fps using th
 
 ## Roadmap
 
-- [ ] **ViViD integration** — swap real flat-lay PNGs for ViViD-generated try-on video frames
+- [x] **Full body coverage** — pants/skirt lower-body quad
+- [x] **Upload any garment** — client-side BG removal → instant AR
+- [x] **Arms-over-cloth** — realistic depth layering
+- [x] **Wrist sleeve tracking** — sleeves follow arm movement
+- [ ] **ViViD integration** — swap flat-lay PNGs for ViViD-generated try-on video frames
 - [ ] **Garment search / filter** — by type, color, price
 - [ ] **Cart persistence** — localStorage save across sessions
-- [ ] **Multi-garment** — try on top + bottom simultaneously
 - [ ] **Fit score** — confidence score for "how well the garment fits" the detected body
 - [ ] **Backend auth** — user accounts, saved try-ons
 - [ ] **WebXR** — AR headset / phone camera overlay (WebXR Device API)
