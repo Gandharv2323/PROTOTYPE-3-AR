@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start AR Mirror",
+			"type": "shell",
+			"command": "node server.js",
+			"args": [],
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}
