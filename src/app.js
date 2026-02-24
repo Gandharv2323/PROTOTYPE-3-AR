@@ -19,6 +19,58 @@ import { SegmentationManager }  from './segmentation.js';
 import { ClothRenderer }        from './cloth_renderer.js';
 import { Analytics }            from './analytics.js';
 
+/**
+ * QuadSpring — damped spring on the 4 quad corners.
+ * Each frame, vertices are pulled toward the pose-computed target with
+ * spring stiffness and damping, creating natural cloth momentum/sway.
+ */
+class QuadSpring {
+  constructor({ stiffness = 20, damping = 0.74 } = {}) {
+    this._k    = stiffness;
+    this._damp = damping;
+    this._cur  = null;  // [{x,y}] x4 — null until first target
+    this._vel  = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
+  }
+
+  /** Reset: next target snaps instantly (no launch wobble on garment switch). */
+  reset() {
+    this._cur = null;
+    this._vel = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
+  }
+
+  /**
+   * Integrate spring toward targetQuad and return the animated quad.
+   * @param {Array<{x,y}>} targetQuad  4 corners from PoseTracker
+   * @param {number}       dt          delta-time in seconds (clamped to 50ms)
+   * @returns {Array<{x,y}>} animated corner positions
+   */
+  update(targetQuad, dt) {
+    if (!targetQuad) return targetQuad;
+    // Clamp dt to avoid physics explosion on tab-hidden / first frame
+    const dtClamped = Math.min(dt, 0.05);
+
+    // On first call, snap to target with zero velocity
+    if (!this._cur) {
+      this._cur = targetQuad.map(p => ({ x: p.x, y: p.y }));
+      this._vel = [{x:0,y:0},{x:0,y:0},{x:0,y:0},{x:0,y:0}];
+      return this._cur;
+    }
+
+    const k = this._k, d = this._damp;
+    for (let i = 0; i < 4; i++) {
+      const dx = targetQuad[i].x - this._cur[i].x;
+      const dy = targetQuad[i].y - this._cur[i].y;
+      // Spring acceleration (F = k*x), then damping
+      this._vel[i].x = (this._vel[i].x + k * dx * dtClamped) * d;
+      this._vel[i].y = (this._vel[i].y + k * dy * dtClamped) * d;
+      this._cur[i].x += this._vel[i].x;
+      this._cur[i].y += this._vel[i].y;
+    }
+    // Return a snapshot (don't share internal array)
+    return this._cur.map(p => ({ x: p.x, y: p.y }));
+  }
+}
+
 export class App {
   constructor(config = {}) {
     // Canvases
@@ -57,6 +109,10 @@ export class App {
     this._sizeMultiplier  = 1.0; // S/M/L chip — 1.0 = M (default)
     this._heightMultiplier = 1.0; // height calibration — 1.0 = 170 cm
     this._debugMode       = false; // D key — draw pose landmarks
+
+    // Cloth wobble springs — one per renderer (upper + lower body)
+    this._upperSpring = new QuadSpring({ stiffness: 20, damping: 0.74 });
+    this._lowerSpring = new QuadSpring({ stiffness: 16, damping: 0.78 });
   }
 
   async init(videoEl, outputCanvas, clothCanvas, fpsEl) {
@@ -152,6 +208,7 @@ export class App {
   async selectGarment(garment) {
     this._currentGarment = garment;
     this._clothOpacity   = 0;  // reset for fade-in
+    this._upperSpring.reset();  // snap to new position (no ghost of old garment)
     await this._clothRenderer.loadGarment(garment.imageUrl);
     this._clothRenderer.setGarmentType(garment.type || 'shirt');
     this._analytics.garmentView(garment.id, garment.name);
@@ -165,6 +222,7 @@ export class App {
     }
     this._lowerGarment      = garment;
     this._lowerClothOpacity = 0;
+    this._lowerSpring.reset();  // snap to new position
     await this._clothRenderer2.loadGarment(garment.imageUrl);
     this._clothRenderer2.setGarmentType(garment.type || 'pants');
     console.log('[App] Lower garment loaded:', garment.name);
@@ -268,10 +326,14 @@ export class App {
     if (shouldRenderCloth) {
       // Mirror landmarks X to match mirrored video
       const mirroredLm = lm.map(p => ({ ...p, x: 1 - p.x }));
-      const quad = PoseTracker.computeClothQuad(
+      const rawQuad = PoseTracker.computeClothQuad(
         mirroredLm, w, h, this._currentGarment.type || 'shirt',
         this._sizeMultiplier, this._heightMultiplier
       );
+      // Apply spring wobble — compute dt from last frame time
+      const now = performance.now();
+      const dt  = (now - this._lastFrameTime) / 1000;
+      const quad = rawQuad ? this._upperSpring.update(rawQuad, dt) : null;
 
       if (quad) {
         // Animate cloth opacity: fade in on first frames, fade out on confidence loss
@@ -294,11 +356,14 @@ export class App {
       this._clothOpacity *= 0.85;
       if (this._currentGarment) {
         const mirroredLm = lm ? lm.map(p => ({ ...p, x: 1 - p.x })) : null;
-        const quad = mirroredLm
+        const rawFadeQuad = mirroredLm
           ? PoseTracker.computeClothQuad(mirroredLm, w, h, this._currentGarment?.type || 'shirt',
               this._sizeMultiplier, this._heightMultiplier) : null;
-        if (quad) {
-          this._clothRenderer.render(quad);
+        const fadeQuad = rawFadeQuad
+          ? this._upperSpring.update(rawFadeQuad, (performance.now() - this._lastFrameTime) / 1000)
+          : null;
+        if (fadeQuad) {
+          this._clothRenderer.render(fadeQuad);
           ctx.save();
           ctx.globalAlpha = this._clothOpacity;
           ctx.drawImage(this._clothCanvas, 0, 0);
@@ -310,11 +375,14 @@ export class App {
     // ── 4. Lower body (pants/skirt) ─────────────────────────────────────────
     if (this._lowerGarment && this._clothRenderer2 && shouldRenderCloth) {
       const mirroredLm = lm.map(p => ({ ...p, x: 1 - p.x }));
-      const lowerQuad  = PoseTracker.computeLowerBodyQuad(
+      const rawLowerQuad = PoseTracker.computeLowerBodyQuad(
         mirroredLm, w, h,
         this._lowerGarment.type || 'pants',
         this._sizeMultiplier, this._heightMultiplier
       );
+      const lowerQuad = rawLowerQuad
+        ? this._lowerSpring.update(rawLowerQuad, (performance.now() - this._lastFrameTime) / 1000)
+        : null;
       if (lowerQuad) {
         const targetOpacity = isConfident ? 1.0 : 0.0;
         this._lowerClothOpacity += (targetOpacity - this._lowerClothOpacity) * 0.12;

@@ -40,20 +40,101 @@ const FRAG_SHADER = `
   varying vec2 v_texCoord;
   uniform sampler2D u_texture;
   uniform float u_opacity;
-  uniform float u_edgeFade; // feather distance in UV space (e.g. 0.04)
+  uniform float u_edgeFade;    // feather distance in UV space
+  uniform float u_roughness;   // 0=silk, 0.75=cotton, 0.82=denim
+  uniform float u_fabricScale; // weave tiling (24=cotton, 48=silk, 32=denim)
+  uniform float u_time;        // seconds — for silk shimmer animation
+
+  // --- Pseudo-random hash for noise ---
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  // Value noise (smooth random field)
+  float vnoise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i+vec2(1,0)), u.x),
+               mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y);
+  }
+
+  // --- Fabric weave normal (cross-hatch sine threads) ---
+  vec3 weaveNormal(vec2 uv, float scale) {
+    vec2 p = uv * scale;
+    float wx = sin(p.x * 6.2832);
+    float wy = sin(p.y * 6.2832);
+    float eps = 0.03;
+    float wx2 = sin((p.x + eps) * 6.2832);
+    float wy2 = sin((p.y + eps) * 6.2832);
+    float dX = (wx2 * wy - wx * wy) / eps * 0.04;
+    float dY = (wx * wy2 - wx * wy) / eps * 0.04;
+    return normalize(vec3(dX, dY, 1.0));
+  }
+
+  // --- Low-frequency wrinkle normal (2-octave value noise gradient) ---
+  vec3 wrinkleNormal(vec2 uv) {
+    float eps = 0.008;
+    float h00 = vnoise(uv * 4.0) * 0.65 + vnoise(uv * 9.0) * 0.35;
+    float hx  = vnoise((uv + vec2(eps,0.0)) * 4.0) * 0.65 + vnoise((uv + vec2(eps,0.0)) * 9.0) * 0.35;
+    float hy  = vnoise((uv + vec2(0.0,eps)) * 4.0) * 0.65 + vnoise((uv + vec2(0.0,eps)) * 9.0) * 0.35;
+    float dX = (hx - h00) / eps * 0.45;
+    float dY = (hy - h00) / eps * 0.45;
+    return normalize(vec3(dX, dY, 1.0));
+  }
 
   void main() {
     vec4 color = texture2D(u_texture, v_texCoord);
 
-    // Edge feathering: fade alpha near quad boundaries
+    // Edge feathering
     float fadeX = smoothstep(0.0, u_edgeFade, v_texCoord.x)
                 * smoothstep(1.0, 1.0 - u_edgeFade, v_texCoord.x);
     float fadeY = smoothstep(0.0, u_edgeFade, v_texCoord.y)
                 * smoothstep(1.0, 1.0 - u_edgeFade, v_texCoord.y);
     float edgeAlpha = fadeX * fadeY;
 
-    // Respect source transparency (for pre-cut garment images)
-    gl_FragColor = vec4(color.rgb, color.a * edgeAlpha * u_opacity);
+    // --- Combine weave + wrinkle normals ---
+    vec3 Nw = weaveNormal(v_texCoord, u_fabricScale);
+    vec3 Nr = wrinkleNormal(v_texCoord);
+    // Rough fabrics show more wrinkles; smooth fabrics show more weave sheen
+    vec3 N  = normalize(mix(Nw, Nr, clamp(u_roughness * 0.55, 0.0, 1.0)));
+
+    // --- Lighting (Blinn-Phong + fabric sheen) ---
+    // Key light: top-right studio angle
+    vec3 L = normalize(vec3(0.35, -0.65, 1.0));
+    // Fill light: soft left fill
+    vec3 Lf = normalize(vec3(-0.4, -0.2, 0.9));
+    vec3 V  = vec3(0.0, 0.0, 1.0);  // viewer (ortho)
+    vec3 H  = normalize(L + V);
+
+    // Lambertian diffuse (key + fill)
+    float diff  = max(dot(N, L),  0.0) * 0.38;
+    float diffF = max(dot(N, Lf), 0.0) * 0.12;
+
+    // Blinn-Phong specular — rough=dull, smooth=sharp
+    float shininess = mix(96.0, 4.0, u_roughness);
+    float spec = pow(max(dot(N, H), 0.0), shininess)
+               * (1.0 - u_roughness * 0.85) * 0.22;
+
+    // Fabric sheen / retroreflection (grazing-angle fiber glow)
+    float NdotV = max(dot(N, V), 0.0);
+    float sheen = pow(1.0 - NdotV, 4.0) * u_roughness * 0.20;
+
+    // Ambient occlusion hint: slightly darken near quad edges
+    float ao = mix(0.88, 1.0, edgeAlpha);
+
+    float ambient  = 0.52;
+    float lighting = (ambient + diff + diffF + sheen) * ao;
+
+    // Animated silk shimmer (only visible at low roughness)
+    float shimmer = (1.0 - u_roughness)
+      * sin(u_time * 1.8 + v_texCoord.x * 14.0 + v_texCoord.y * 7.0)
+      * 0.025;
+    lighting += shimmer;
+
+    // Specular highlight — slightly warm tint
+    vec3 specTint = vec3(1.0, 0.96, 0.90);
+    vec3 lit = color.rgb * lighting + specTint * spec * (1.0 - u_roughness * 0.6);
+
+    gl_FragColor = vec4(lit, color.a * edgeAlpha * u_opacity);
   }
 `;
 
@@ -73,6 +154,8 @@ export class ClothRenderer {
     this._opacity = 1.0;
     this._targetOpacity = 1.0;  // for smooth garment switch fade-in
     this._garmentType = 'shirt';
+    this._roughness    = 0.65;  // default: cotton shirt
+    this._fabricScale  = 24.0;  // weave tiling density
   }
 
   init() {
@@ -119,12 +202,15 @@ export class ClothRenderer {
 
     // Cache attribute + uniform locations ONCE — never look them up per frame.
     this._locs = {
-      aPos:     gl.getAttribLocation(this._program, 'a_position'),
-      aUV:      gl.getAttribLocation(this._program, 'a_texCoord'),
-      uRes:     gl.getUniformLocation(this._program, 'u_resolution'),
-      uOpacity: gl.getUniformLocation(this._program, 'u_opacity'),
-      uEdge:    gl.getUniformLocation(this._program, 'u_edgeFade'),
-      uTex:     gl.getUniformLocation(this._program, 'u_texture'),
+      aPos:        gl.getAttribLocation(this._program, 'a_position'),
+      aUV:         gl.getAttribLocation(this._program, 'a_texCoord'),
+      uRes:        gl.getUniformLocation(this._program, 'u_resolution'),
+      uOpacity:    gl.getUniformLocation(this._program, 'u_opacity'),
+      uEdge:       gl.getUniformLocation(this._program, 'u_edgeFade'),
+      uTex:        gl.getUniformLocation(this._program, 'u_texture'),
+      uRoughness:  gl.getUniformLocation(this._program, 'u_roughness'),
+      uFabricScale:gl.getUniformLocation(this._program, 'u_fabricScale'),
+      uTime:       gl.getUniformLocation(this._program, 'u_time'),
     };
 
     // WebGL context loss / restore (happens on mobile GPU suspend)
@@ -234,8 +320,11 @@ export class ClothRenderer {
 
     // Uniforms — use cached locations (zero lookup cost)
     gl.uniform2f(locs.uRes, w, h);
-    gl.uniform1f(locs.uOpacity, this._opacity);
-    gl.uniform1f(locs.uEdge, 0.05);  // 5% feather — softer edges, less sticker look
+    gl.uniform1f(locs.uOpacity,     this._opacity);
+    gl.uniform1f(locs.uEdge,        0.05);   // 5% feather — softer edges, less sticker look
+    gl.uniform1f(locs.uRoughness,   this._roughness);
+    gl.uniform1f(locs.uFabricScale, this._fabricScale);
+    gl.uniform1f(locs.uTime,        performance.now() / 1000.0);
 
     // Bind texture
     gl.activeTexture(gl.TEXTURE0);
@@ -247,7 +336,24 @@ export class ClothRenderer {
     gl.drawElements(gl.TRIANGLES, 12, gl.UNSIGNED_SHORT, 0);
   }
 
-  setGarmentType(type) { this._garmentType = type; }
+  setGarmentType(type) {
+    this._garmentType = type;
+    // Per-type roughness (0=silk/smooth, 1=rough/matte) and weave scale
+    const config = {
+      silk:    { roughness: 0.12, scale: 52 },
+      satin:   { roughness: 0.20, scale: 48 },
+      leather: { roughness: 0.38, scale: 18 },
+      jacket:  { roughness: 0.52, scale: 22 },
+      shirt:   { roughness: 0.65, scale: 26 },
+      hoodie:  { roughness: 0.78, scale: 20 },
+      pants:   { roughness: 0.70, scale: 24 },
+      denim:   { roughness: 0.84, scale: 34 },
+      knit:    { roughness: 0.72, scale: 16 },
+    };
+    const c = config[type] || { roughness: 0.65, scale: 24 };
+    this._roughness   = c.roughness;
+    this._fabricScale = c.scale;
+  }
 
   _fadeIn() {
     this._opacity = 0;
