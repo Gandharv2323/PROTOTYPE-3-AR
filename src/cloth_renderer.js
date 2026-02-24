@@ -44,6 +44,8 @@ const FRAG_SHADER = `
   uniform float u_roughness;   // 0=silk, 0.75=cotton, 0.82=denim
   uniform float u_fabricScale; // weave tiling (24=cotton, 48=silk, 32=denim)
   uniform float u_time;        // seconds — for silk shimmer animation
+  uniform float u_envBrightness; // scene brightness from camera (0.3 dark … 1.5 bright)
+  uniform vec3  u_envTint;       // scene color tint sampled from camera feed
 
   // --- Pseudo-random hash for noise ---
   float hash(vec2 p) {
@@ -121,7 +123,7 @@ const FRAG_SHADER = `
     // Ambient occlusion hint: slightly darken near quad edges
     float ao = mix(0.88, 1.0, edgeAlpha);
 
-    float ambient  = 0.52;
+    float ambient  = 0.52 * u_envBrightness;
     float lighting = (ambient + diff + diffF + sheen) * ao;
 
     // Animated silk shimmer (only visible at low roughness)
@@ -132,7 +134,8 @@ const FRAG_SHADER = `
 
     // Specular highlight — slightly warm tint
     vec3 specTint = vec3(1.0, 0.96, 0.90);
-    vec3 lit = color.rgb * lighting + specTint * spec * (1.0 - u_roughness * 0.6);
+    // Apply camera env tint to diffuse (blended 50% toward white to avoid colour cast)
+    vec3 lit = color.rgb * lighting * u_envTint + specTint * spec * (1.0 - u_roughness * 0.6);
 
     gl_FragColor = vec4(lit, color.a * edgeAlpha * u_opacity);
   }
@@ -154,8 +157,10 @@ export class ClothRenderer {
     this._opacity = 1.0;
     this._targetOpacity = 1.0;  // for smooth garment switch fade-in
     this._garmentType = 'shirt';
-    this._roughness    = 0.65;  // default: cotton shirt
-    this._fabricScale  = 24.0;  // weave tiling density
+    this._roughness     = 0.65;  // default: cotton shirt
+    this._fabricScale   = 24.0;  // weave tiling density
+    this._envBrightness = 1.0;
+    this._envTint       = new Float32Array([1.0, 1.0, 1.0]);
   }
 
   init() {
@@ -208,9 +213,11 @@ export class ClothRenderer {
       uOpacity:    gl.getUniformLocation(this._program, 'u_opacity'),
       uEdge:       gl.getUniformLocation(this._program, 'u_edgeFade'),
       uTex:        gl.getUniformLocation(this._program, 'u_texture'),
-      uRoughness:  gl.getUniformLocation(this._program, 'u_roughness'),
-      uFabricScale:gl.getUniformLocation(this._program, 'u_fabricScale'),
-      uTime:       gl.getUniformLocation(this._program, 'u_time'),
+      uRoughness:     gl.getUniformLocation(this._program, 'u_roughness'),
+      uFabricScale:   gl.getUniformLocation(this._program, 'u_fabricScale'),
+      uTime:          gl.getUniformLocation(this._program, 'u_time'),
+      uEnvBrightness: gl.getUniformLocation(this._program, 'u_envBrightness'),
+      uEnvTint:       gl.getUniformLocation(this._program, 'u_envTint'),
     };
 
     // WebGL context loss / restore (happens on mobile GPU suspend)
@@ -322,9 +329,11 @@ export class ClothRenderer {
     gl.uniform2f(locs.uRes, w, h);
     gl.uniform1f(locs.uOpacity,     this._opacity);
     gl.uniform1f(locs.uEdge,        0.05);   // 5% feather — softer edges, less sticker look
-    gl.uniform1f(locs.uRoughness,   this._roughness);
-    gl.uniform1f(locs.uFabricScale, this._fabricScale);
-    gl.uniform1f(locs.uTime,        performance.now() / 1000.0);
+    gl.uniform1f(locs.uRoughness,      this._roughness);
+    gl.uniform1f(locs.uFabricScale,    this._fabricScale);
+    gl.uniform1f(locs.uTime,           performance.now() / 1000.0);
+    gl.uniform1f(locs.uEnvBrightness,  this._envBrightness);
+    gl.uniform3fv(locs.uEnvTint,       this._envTint);
 
     // Bind texture
     gl.activeTexture(gl.TEXTURE0);
@@ -353,6 +362,18 @@ export class ClothRenderer {
     const c = config[type] || { roughness: 0.65, scale: 24 };
     this._roughness   = c.roughness;
     this._fabricScale = c.scale;
+  }
+
+  /**
+   * Update ambient light from camera sampling (call every frame).
+   * Uses exponential smoothing to prevent per-frame flicker.
+   */
+  setEnvLight(brightness, r, g, b) {
+    const k = 0.10;
+    this._envBrightness  += k * (brightness - this._envBrightness);
+    this._envTint[0]     += k * (r - this._envTint[0]);
+    this._envTint[1]     += k * (g - this._envTint[1]);
+    this._envTint[2]     += k * (b - this._envTint[2]);
   }
 
   _fadeIn() {

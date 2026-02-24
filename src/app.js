@@ -113,6 +113,10 @@ export class App {
     // Cloth wobble springs — one per renderer (upper + lower body)
     this._upperSpring = new QuadSpring({ stiffness: 20, damping: 0.74 });
     this._lowerSpring = new QuadSpring({ stiffness: 16, damping: 0.78 });
+
+    // Camera-based environment light sampling (16×16 offscreen canvas)
+    this._envCanvas = null;
+    this._envCtx    = null;
   }
 
   async init(videoEl, outputCanvas, clothCanvas, fpsEl) {
@@ -125,6 +129,11 @@ export class App {
     // Init modules
     this._clothRenderer = new ClothRenderer(clothCanvas);
     this._clothRenderer.init();
+
+    // Tiny canvas for per-frame camera brightness sampling (env light match)
+    this._envCanvas = document.createElement('canvas');
+    this._envCanvas.width = this._envCanvas.height = 16;
+    this._envCtx = this._envCanvas.getContext('2d', { willReadFrequently: true });
 
     const w = outputCanvas.width;
     const h = outputCanvas.height;
@@ -282,6 +291,9 @@ export class App {
   }
 
   _render() {
+    // Sample camera lighting every frame — feed to both cloth renderers
+    this._sampleEnvLight();
+
     const ctx = this._outCtx;
     const w   = this._outputCanvas.width;
     const h   = this._outputCanvas.height;
@@ -339,6 +351,9 @@ export class App {
         // Animate cloth opacity: fade in on first frames, fade out on confidence loss
         const targetOpacity = isConfident ? 1.0 : 0.0;
         this._clothOpacity += (targetOpacity - this._clothOpacity) * 0.12;
+
+        // Contact shadow: soft ellipse behind garment roots it to the body
+        this._drawContactShadow(ctx, rawQuad, this._clothOpacity);
 
         // Render cloth via WebGL onto transparent cloth canvas
         this._clothRenderer.render(quad);
@@ -401,6 +416,53 @@ export class App {
 
     // ── Debug overlay (D key) ──────────────────────────────────────────────
     if (this._debugMode) this._drawDebug(ctx, this._latestLandmarks, w, h);
+  }
+
+  /**
+   * Sample camera frame for scene brightness + color temperature.
+   * Draws video into a 16×16 canvas, reads the top quarter (ceiling/sky area),
+   * averages RGB to estimate ambient light, and passes to cloth renderers.
+   */
+  _sampleEnvLight() {
+    if (!this._envCtx || !this._videoEl || this._videoEl.readyState < 2) return;
+    const S = 16;
+    this._envCtx.drawImage(this._videoEl, 0, 0, S, S);
+    const d = this._envCtx.getImageData(0, 0, S, S / 4).data; // top quarter only
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+    }
+    if (n === 0) return;
+    r /= n; g /= n; b /= n;
+    // Brightness: 0.3 (dark room) … 1.5 (bright sunlight). 220 = neutral mid exposure.
+    const brightness = Math.min((r + g + b) / (3 * 200), 1.5);
+    // Tint: soften 50% toward white so over-tinting is prevented
+    const maxC = Math.max(r, g, b, 1);
+    const tr = 0.55 + 0.45 * (r / maxC);
+    const tg = 0.55 + 0.45 * (g / maxC);
+    const tb = 0.55 + 0.45 * (b / maxC);
+    if (this._clothRenderer)  this._clothRenderer.setEnvLight(brightness, tr, tg, tb);
+    if (this._clothRenderer2) this._clothRenderer2.setEnvLight(brightness, tr, tg, tb);
+  }
+
+  /**
+   * Draw a soft blurred ellipse at the top edge of the garment quad.
+   * This shadow 'attaches' the garment visually to the chest — kills the
+   * floating sticker look.
+   */
+  _drawContactShadow(ctx, quad, alpha) {
+    if (!quad || alpha < 0.05) return;
+    const cx = (quad[0].x + quad[1].x) / 2;
+    const cy = (quad[0].y + quad[1].y) / 2 + 4;
+    const ew = Math.abs(quad[1].x - quad[0].x) * 0.58;
+    const eh = Math.max(ew * 0.08, 6);
+    ctx.save();
+    ctx.filter = 'blur(14px)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, ew, eh, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0,0,0,${(0.20 * alpha).toFixed(3)})`;
+    ctx.fill();
+    ctx.restore();
   }
 
   /**

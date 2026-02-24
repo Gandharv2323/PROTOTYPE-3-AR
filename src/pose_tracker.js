@@ -156,11 +156,35 @@ export class PoseTracker {
     const botLeftY  = botY + tilt * (botLeftX  - midX);
     const botRightY = botY + tilt * (botRightX - midX);
 
+    // ── Fix #5: Collar tight-fit — pinch top corners inward toward neck ──────
+    // Top corners currently span full elbow-to-elbow width; pulling them
+    // toward the neck centre closes the gap between collar and skin.
+    const neckX       = (leftSh.x + rightSh.x) / 2;
+    const collarPinch = 0.26;  // 26% pull toward centre
+    const topLeftX  = leftX  + (neckX - leftX)  * collarPinch;
+    const topRightX = rightX - (rightX - neckX) * collarPinch;
+
+    // ── Fix #2: Arm-raise deformation — raised arm pulls hem up on that side ─
+    // When one shoulder rises, the garment hem on that side lifts with it.
+    const shoulderDelta = (rightSh.y - leftSh.y) / Math.max(shoulderWidth, 1);
+    // Positive delta = right shoulder lower = left arm raised
+    const raisedPull   = Math.min(Math.abs(shoulderDelta), 0.55) * bodyHeight * 0.16;
+    const adjBotLeftY  = shoulderDelta < -0.04 ? botLeftY  - raisedPull : botLeftY;
+    const adjBotRightY = shoulderDelta >  0.04 ? botRightY - raisedPull : botRightY;
+
+    // ── Fix #4: Side-view cylindrical warp — compress quad when torso turns ──
+    // When user faces left/right, shoulder width narrows relative to hip width.
+    // We inset both horizontal edges proportionally to fake cylindrical wrap.
+    const hipWidth    = Math.abs(rightHip.x - leftHip.x);
+    const baseline    = Math.max(hipWidth * 0.90, shoulderWidth);
+    const turnFactor  = Math.max(0, 1 - shoulderWidth / baseline); // 0=facing cam, 1=sideways
+    const inset       = shoulderWidth * turnFactor * 0.28;
+
     return [
-      { x: leftX,      y: topLeftY  },  // top-left
-      { x: rightX,     y: topRightY },  // top-right
-      { x: botRightX,  y: botRightY },  // bottom-right
-      { x: botLeftX,   y: botLeftY  },  // bottom-left
+      { x: topLeftX  + inset,  y: topLeftY     },  // top-left
+      { x: topRightX - inset,  y: topRightY    },  // top-right
+      { x: botRightX - inset,  y: adjBotRightY },  // bottom-right
+      { x: botLeftX  + inset,  y: adjBotLeftY  },  // bottom-left
     ];
   }
 
