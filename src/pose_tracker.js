@@ -83,7 +83,7 @@ export class PoseTracker {
    *
    * canvasW, canvasH: the output canvas dimensions (landmarks are 0–1 normalized)
    */
-  static computeClothQuad(landmarks, canvasW, canvasH, garmentType = 'shirt', sizeMultiplier = 1.0) {
+  static computeClothQuad(landmarks, canvasW, canvasH, garmentType = 'shirt', sizeMultiplier = 1.0, heightMultiplier = 1.0) {
     if (!landmarks) return null;
 
     const lm = (idx) => ({
@@ -141,9 +141,10 @@ export class PoseTracker {
 
     // Bottom edge: body-proportional drop below hips
     // jacket longer, shirt slightly below hip, hoodie to hip
+    // heightMultiplier scales only the vertical drop (taller = longer garment)
     const dropRatio = (garmentType === 'jacket' ? 0.22
                      : garmentType === 'hoodie' ? 0.08
-                     : 0.12) * sizeMultiplier;
+                     : 0.12) * sizeMultiplier * heightMultiplier;
     const botY = hipMidY + bodyHeight * dropRatio;
 
     // Bottom corners follow the shoulder tilt slope for natural drape
@@ -167,7 +168,7 @@ export class PoseTracker {
    * Compute lower body (pants/skirt) warp quad from hip → knee → ankle.
    * Returns [topLeft, topRight, bottomRight, bottomLeft] in canvas pixels.
    */
-  static computeLowerBodyQuad(landmarks, canvasW, canvasH, garmentType = 'pants', sizeMultiplier = 1.0) {
+  static computeLowerBodyQuad(landmarks, canvasW, canvasH, garmentType = 'pants', sizeMultiplier = 1.0, heightMultiplier = 1.0) {
     if (!landmarks) return null;
     const lm = (idx) => ({ x: landmarks[idx].x * canvasW, y: landmarks[idx].y * canvasH });
 
@@ -199,15 +200,15 @@ export class PoseTracker {
       botY = Math.max(
         laVis > 0.4 ? la.y : 0,
         raVis > 0.4 ? ra.y : 0
-      ) + hipW * 0.08 * sizeMultiplier;
+      ) + hipW * 0.08 * sizeMultiplier * heightMultiplier;
     } else if (lkVis > 0.4 || rkVis > 0.4) {
       botY = Math.max(
         lkVis > 0.4 ? lk.y : 0,
         rkVis > 0.4 ? rk.y : 0
-      ) + hipW * 0.12 * sizeMultiplier;
+      ) + hipW * 0.12 * sizeMultiplier * heightMultiplier;
     } else {
-      // Estimate: hip + 2x hip-to-hip width
-      botY = Math.max(lh.y, rh.y) + hipW * 1.8 * sizeMultiplier;
+      // Estimate: hip + 2x hip-to-hip width — heightMultiplier extends length for taller users
+      botY = Math.max(lh.y, rh.y) + hipW * 1.8 * sizeMultiplier * heightMultiplier;
     }
 
     // Slight taper at hem (pants narrow at ankles)

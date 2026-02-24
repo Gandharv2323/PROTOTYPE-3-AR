@@ -1012,13 +1012,28 @@
 
     // Height calibration
     function applyHeight() {
-      var cm = parseInt(heightInputEl.value, 10);
-      if (!cm || cm < 140 || cm > 220) return;
+      var raw = heightInputEl.value.trim();
+      var cm  = parseInt(raw, 10);
+      if (!cm || cm < 100 || cm > 250) {
+        heightNoteEl.textContent = 'Enter a height between 100 and 250 cm';
+        heightNoteEl.style.color = 'var(--red)';
+        return;
+      }
       app.setHeight(cm);
-      heightNoteEl.textContent = cm + ' cm \u2014 garment fit calibrated';
+      var mult   = cm / 170;
+      var pct    = Math.round((mult - 1) * 100);
+      var sign   = pct >= 0 ? '+' : '';
+      var detail = cm === 170
+        ? 'baseline fit (170 cm)'
+        : sign + pct + '% garment length for ' + cm + ' cm';
+      heightNoteEl.textContent = cm + ' cm \u2014 ' + detail;
+      heightNoteEl.style.color = 'var(--green)';
     }
     heightSetBtn.addEventListener('click', applyHeight);
     heightInputEl.addEventListener('keydown', function(e) { if (e.key === 'Enter') applyHeight(); });
+    heightInputEl.addEventListener('input', function() {
+      heightNoteEl.style.color = '';
+    });
 
     // D key debug overlay
     document.addEventListener('keydown', function(e) {

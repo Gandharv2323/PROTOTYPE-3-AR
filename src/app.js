@@ -140,8 +140,8 @@ export class App {
   }
 
   setHeight(cm) {
-    // Scale relative to 170 cm baseline
-    this._heightMultiplier = Math.max(0.7, Math.min(1.5, cm / 170));
+    // Scale relative to 170 cm baseline — affects garment drop/length only
+    this._heightMultiplier = Math.max(0.6, Math.min(1.6, cm / 170));
   }
 
   toggleDebug() {
@@ -270,7 +270,7 @@ export class App {
       const mirroredLm = lm.map(p => ({ ...p, x: 1 - p.x }));
       const quad = PoseTracker.computeClothQuad(
         mirroredLm, w, h, this._currentGarment.type || 'shirt',
-        this._sizeMultiplier * this._heightMultiplier
+        this._sizeMultiplier, this._heightMultiplier
       );
 
       if (quad) {
@@ -296,7 +296,7 @@ export class App {
         const mirroredLm = lm ? lm.map(p => ({ ...p, x: 1 - p.x })) : null;
         const quad = mirroredLm
           ? PoseTracker.computeClothQuad(mirroredLm, w, h, this._currentGarment?.type || 'shirt',
-              this._sizeMultiplier * this._heightMultiplier) : null;
+              this._sizeMultiplier, this._heightMultiplier) : null;
         if (quad) {
           this._clothRenderer.render(quad);
           ctx.save();
@@ -313,7 +313,7 @@ export class App {
       const lowerQuad  = PoseTracker.computeLowerBodyQuad(
         mirroredLm, w, h,
         this._lowerGarment.type || 'pants',
-        this._sizeMultiplier * this._heightMultiplier
+        this._sizeMultiplier, this._heightMultiplier
       );
       if (lowerQuad) {
         const targetOpacity = isConfident ? 1.0 : 0.0;
